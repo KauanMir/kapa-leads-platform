@@ -46,10 +46,13 @@ npm run dev                  # http://localhost:3000
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Gera os tipos de rotas do Next e roda o TypeScript sem emitir arquivos |
 | `npm run check` | `typecheck` + `lint` |
+| `npm test` | Testes unitários (sem rede) |
 | `npm run test:rls` | Testes de isolamento RLS no Supabase remoto (exige `ALLOW_REMOTE_RLS_TESTS=true`) |
+| `npm run test:api` | Testes da API pública no Supabase remoto (exige `ALLOW_REMOTE_API_TESTS=true`) |
 | `npm run db:types` | Gera `src/types/database.ts` a partir do projeto Supabase vinculado |
 
-Banco, RLS, como aplicar migrations e criar o SUPER_ADMIN: [`docs/banco-e-seguranca.md`](docs/banco-e-seguranca.md).
+- Banco, RLS, como aplicar migrations e criar o SUPER_ADMIN: [`docs/banco-e-seguranca.md`](docs/banco-e-seguranca.md).
+- API pública para Landing Pages (`POST /api/public/leads`): [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md).
 
 ## Estrutura de pastas
 
@@ -66,7 +69,7 @@ src/
   types/               tipos gerados do banco
 supabase/
   migrations/          SQL versionado (fonte da verdade do banco)
-  tests/               testes de RLS
+  tests/               testes remotos (RLS e API pública)
 docs/                  documentação (ex.: guia de integração das LPs)
 ```
 
@@ -82,8 +85,8 @@ docs/                  documentação (ex.: guia de integração das LPs)
 ## Fases
 
 1. **Fundação** — projeto Next.js, TypeScript, Tailwind, ESLint, estrutura. ✅
-2. **Banco e segurança** — migrations, RLS, GRANTs, triggers de eventos, seed, testes de isolamento.
-3. API pública `POST /api/public/leads`.
+2. **Banco e segurança** — migrations, RLS, GRANTs, triggers de eventos, seed, testes de isolamento. ✅
+3. **API pública** `POST /api/public/leads` — validação, CORS por campanha, honeypot, idempotência, rate limit básico. ✅
 4. Autenticação (login, sessão, guards).
 5. Admin (dashboard, leads, detalhe do lead, configurações KAPA).
 6. Integração da LP Vitrine — Duelo de Aprovações.
@@ -93,4 +96,4 @@ docs/                  documentação (ex.: guia de integração das LPs)
 - Backup automático do banco (`pg_dump` agendado), já que o Supabase Free não oferece backups gerenciados.
 - Escolha do provedor de hospedagem (Cloudflare como primeira opção; Vercel Pro como alternativa).
 - SMTP próprio para convites e redefinição de senha.
-- Anti-abuso mais forte na API pública (ex.: Cloudflare Turnstile ou assinatura server-side para LPs com backend).
+- Anti-abuso mais forte na API pública (ex.: Cloudflare WAF/Turnstile, rate limit distribuído com Redis/KV, ou assinatura server-side para LPs com backend). O rate limit atual é em memória, por instância.

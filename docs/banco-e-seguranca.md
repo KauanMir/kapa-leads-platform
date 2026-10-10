@@ -82,3 +82,5 @@ ALLOW_REMOTE_RLS_TESTS=true npm run test:rls
 Sem a variável o teste aborta antes de qualquer acesso ao banco. Não roda em `build` nem em `npm install`. Use apenas em projeto de desenvolvimento.
 
 Se uma execução for interrompida, a próxima remove automaticamente as sobras com prefixo `rls-test-`.
+
+Os testes da API pública (`supabase/tests/public-leads-api.test.ts`, prefixo `api-test-`) seguem o mesmo modelo com a trava `ALLOW_REMOTE_API_TESTS=true` e o comando `npm run test:api`. `npm test` roda só os testes unitários, sem rede.
