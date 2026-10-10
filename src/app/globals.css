@@ -1,24 +1,67 @@
 @import "tailwindcss";
 
 /*
- * Tokens visuais do Admin KAPA.
- * O Admin é claro por padrão (MVP). Cores de destaque e de status
- * serão definidas aqui quando as telas forem construídas.
+ * Tokens visuais do Admin KAPA (tema claro).
+ * Para trocar a cor de destaque da marca, altere apenas --accent*.
  */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f5f6f8;
+  --surface: #ffffff;
+  --foreground: #101828;
+  --muted: #5d6779;
+  --border: #e3e6eb;
+  --border-strong: #cfd4dc;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --accent-soft: #eef3ff;
+  --danger: #b42318;
+  --danger-soft: #fef3f2;
+  --success: #067647;
+  --success-soft: #ecfdf3;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Foco sempre visível para navegação por teclado. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }

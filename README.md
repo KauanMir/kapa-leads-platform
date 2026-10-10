@@ -49,27 +49,34 @@ npm run dev                  # http://localhost:3000
 | `npm test` | Testes unitários (sem rede) |
 | `npm run test:rls` | Testes de isolamento RLS no Supabase remoto (exige `ALLOW_REMOTE_RLS_TESTS=true`) |
 | `npm run test:api` | Testes da API pública no Supabase remoto (exige `ALLOW_REMOTE_API_TESTS=true`) |
+| `npm run test:admin` | Autorização do Admin por papel no Supabase remoto (exige `ALLOW_REMOTE_ADMIN_TESTS=true`) |
+| `npm run test:e2e` | Telas do Admin via HTTP com sessões reais (servidor rodando + `ALLOW_REMOTE_E2E_TESTS=true`) |
 | `npm run db:types` | Gera `src/types/database.ts` a partir do projeto Supabase vinculado |
 
-- Banco, RLS, como aplicar migrations e criar o SUPER_ADMIN: [`docs/banco-e-seguranca.md`](docs/banco-e-seguranca.md).
+- **Admin** (login, papéis, telas, primeiro SUPER_ADMIN, lojas, campanhas, `allowed_origins`, `form_schema`): [`docs/admin.md`](docs/admin.md).
+- Banco, RLS e como aplicar migrations: [`docs/banco-e-seguranca.md`](docs/banco-e-seguranca.md).
 - API pública para Landing Pages (`POST /api/public/leads`): [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md).
 
 ## Estrutura de pastas
 
 ```
 src/
-  app/                 rotas (App Router)
-  components/ui/       componentes visuais básicos (botão, input, badge...)
-  components/leads/    componentes das telas de leads
+  app/(auth)/login     tela de login
+  app/(admin)/         Admin protegido (dashboard, leads, loja, perfil, config/*)
+  app/api/public/      API pública das Landing Pages
+  proxy.ts             renova a sessão e manda para /login quem não está logado
+  components/          ui/ (básicos), admin/ (shell e menu), leads/, config/, profile/
   lib/supabase/        clientes Supabase (sessão do usuário / chave secreta server-only)
-  lib/auth/            usuário atual, guards de papel
-  lib/validation/      schemas Zod, CPF, telefone, form_data
-  lib/leads/           consultas e Server Actions de leads
-  lib/format/          datas (America/Sao_Paulo), dinheiro, telefone, máscara de CPF
+  lib/auth/            contexto do usuário (perfil + vínculos), guards de papel
+  lib/admin/           consultas do Admin (sempre com a sessão → RLS), filtros, linha do tempo
+  lib/actions/         Server Actions (revalidam sessão e permissão)
+  lib/leads/           API pública: handler, schema, rate limit
+  lib/validation/      CPF, telefone, nascimento
+  lib/format/          datas (America/Sao_Paulo), dinheiro, telefone, status, form_data
   types/               tipos gerados do banco
 supabase/
   migrations/          SQL versionado (fonte da verdade do banco)
-  tests/               testes remotos (RLS e API pública)
+  tests/               testes remotos (RLS, API pública, Admin, ponta a ponta)
 docs/                  documentação (ex.: guia de integração das LPs)
 ```
 
@@ -87,13 +94,15 @@ docs/                  documentação (ex.: guia de integração das LPs)
 1. **Fundação** — projeto Next.js, TypeScript, Tailwind, ESLint, estrutura. ✅
 2. **Banco e segurança** — migrations, RLS, GRANTs, triggers de eventos, seed, testes de isolamento. ✅
 3. **API pública** `POST /api/public/leads` — validação, CORS por campanha, honeypot, idempotência, rate limit básico. ✅
-4. Autenticação (login, sessão, guards).
-5. Admin (dashboard, leads, detalhe do lead, configurações KAPA).
+4. **Autenticação** — login por e-mail/senha, sessão em cookies, guards no servidor, bloqueio de inativos. ✅
+5. **Admin MVP** — dashboard, leads, detalhe com status/observações/linha do tempo, contato rápido, configurações KAPA. ✅
 6. Integração da LP Vitrine — Duelo de Aprovações.
 
 ## Tarefas futuras (fora do MVP)
 
 - Backup automático do banco (`pg_dump` agendado), já que o Supabase Free não oferece backups gerenciados.
 - Escolha do provedor de hospedagem (Cloudflare como primeira opção; Vercel Pro como alternativa).
-- SMTP próprio para convites e redefinição de senha.
+- SMTP próprio para convites e redefinição de senha ("esqueci a senha").
+- Revelação auditada do CPF completo (`CPF_REVEALED`).
+- Nomes dos colegas na linha do tempo para STORE_USER (hoje aparece "Membro da equipe"; exige ajuste de RLS/função).
 - Anti-abuso mais forte na API pública (ex.: Cloudflare WAF/Turnstile, rate limit distribuído com Redis/KV, ou assinatura server-side para LPs com backend). O rate limit atual é em memória, por instância.

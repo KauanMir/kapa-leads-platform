@@ -5,9 +5,11 @@ import { defineConfig } from "vitest/config";
 const fromRoot = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 // Projetos:
-//   unit → `npm test`: sem rede, roda sempre.
-//   rls  → `npm run test:rls`: Supabase remoto, exige ALLOW_REMOTE_RLS_TESTS=true.
-//   api  → `npm run test:api`: Supabase remoto, exige ALLOW_REMOTE_API_TESTS=true.
+//   unit  → `npm test`: sem rede, roda sempre.
+//   rls   → `npm run test:rls`:   Supabase remoto, exige ALLOW_REMOTE_RLS_TESTS=true.
+//   api   → `npm run test:api`:   Supabase remoto, exige ALLOW_REMOTE_API_TESTS=true.
+//   admin → `npm run test:admin`: Supabase remoto, exige ALLOW_REMOTE_ADMIN_TESTS=true.
+//   e2e   → `npm run test:e2e`:   servidor rodando + Supabase remoto, exige ALLOW_REMOTE_E2E_TESTS=true.
 const remote = { fileParallelism: false, testTimeout: 30_000, hookTimeout: 120_000 };
 
 export default defineConfig({
@@ -22,9 +24,11 @@ export default defineConfig({
   test: {
     environment: "node",
     projects: [
-      { extends: true, test: { name: "unit", include: ["src/**/*.test.ts"] } },
+      { extends: true, test: { name: "unit", include: ["src/**/*.test.{ts,tsx}"] } },
       { extends: true, test: { name: "rls", include: ["supabase/tests/rls.test.ts"], ...remote } },
       { extends: true, test: { name: "api", include: ["supabase/tests/public-leads-api.test.ts"], ...remote } },
+      { extends: true, test: { name: "admin", include: ["supabase/tests/admin-access.test.ts"], ...remote } },
+      { extends: true, test: { name: "e2e", include: ["supabase/tests/admin-e2e.test.ts"], ...remote } },
     ],
   },
 });
