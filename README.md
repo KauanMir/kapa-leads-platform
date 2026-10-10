@@ -46,6 +46,10 @@ npm run dev                  # http://localhost:3000
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Gera os tipos de rotas do Next e roda o TypeScript sem emitir arquivos |
 | `npm run check` | `typecheck` + `lint` |
+| `npm run test:rls` | Testes de isolamento RLS no Supabase remoto (exige `ALLOW_REMOTE_RLS_TESTS=true`) |
+| `npm run db:types` | Gera `src/types/database.ts` a partir do projeto Supabase vinculado |
+
+Banco, RLS, como aplicar migrations e criar o SUPER_ADMIN: [`docs/banco-e-seguranca.md`](docs/banco-e-seguranca.md).
 
 ## Estrutura de pastas
 
@@ -78,7 +82,7 @@ docs/                  documentação (ex.: guia de integração das LPs)
 ## Fases
 
 1. **Fundação** — projeto Next.js, TypeScript, Tailwind, ESLint, estrutura. ✅
-2. Banco e segurança — migrations, RLS, função de criação de lead, eventos, seed.
+2. **Banco e segurança** — migrations, RLS, GRANTs, triggers de eventos, seed, testes de isolamento.
 3. API pública `POST /api/public/leads`.
 4. Autenticação (login, sessão, guards).
 5. Admin (dashboard, leads, detalhe do lead, configurações KAPA).
