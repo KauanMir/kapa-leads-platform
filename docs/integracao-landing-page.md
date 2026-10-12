@@ -201,7 +201,7 @@ where slug = 'duelo-de-aprovacoes';
 Enquanto a campanha não tem domínio cadastrado, origens locais podem ser liberadas pela variável `PUBLIC_LEADS_DEV_ORIGINS` no `.env.local` da plataforma:
 
 ```bash
-PUBLIC_LEADS_DEV_ORIGINS=http://localhost:5173,http://localhost:4321
+PUBLIC_LEADS_DEV_ORIGINS=http://localhost:3001   # LP Duelo em dev; várias origens separadas por vírgula
 ```
 
 Essa variável é **ignorada em produção** (`NODE_ENV=production`, ou seja, `next build`/`next start` e qualquer deploy). Não cadastre `localhost` em `allowed_origins` de campanhas reais.
@@ -211,3 +211,50 @@ Essa variável é **ignorada em produção** (`NODE_ENV=production`, ou seja, `n
 - Corpo máximo: 16 KB; somente `application/json`.
 - Rate limit: 10 envios por minuto por IP, **em memória** (por instância do servidor; o IP não é gravado). É uma proteção básica: com várias instâncias ou IPs compartilhados (redes móveis) o comportamento varia. Proteção mais forte (Cloudflare WAF/Turnstile ou Redis) está prevista para o momento do deploy.
 - O IP do visitante nunca é armazenado no lead.
+
+## 10. Campanha integrada: Duelo de Aprovações
+
+LP: repositório `duelo-de-aprovacoes` (Next.js, sem backend próprio). Implementação em `lib/kapa-leads.ts` e
+`lib/tracking.ts`; detalhes do lado da LP no `README.md` dela.
+
+| Item | Valor |
+|---|---|
+| Loja / campanha | Vitrine Veículos / Duelo de Aprovações (`slug` `duelo-de-aprovacoes`) |
+| `consent_version` | `2026-10-v1` (texto: checkbox da etapa 03 do simulador) |
+| Variáveis da LP | `NEXT_PUBLIC_KAPA_LEADS_API_URL`, `NEXT_PUBLIC_KAPA_CAMPAIGN_KEY`, `NEXT_PUBLIC_KAPA_CONSENT_VERSION` (todas públicas) |
+| `allowed_origins` | vazio até existir o domínio de produção da LP |
+
+### form_schema da campanha
+
+Configurado no banco (também está no `supabase/seed.sql` para ambientes novos). Pode ser editado em
+**Admin → Campanhas → Duelo de Aprovações**.
+
+```json
+{
+  "hasTradeIn":               { "label": "Possui veículo na troca",              "format": "boolean", "order": 1 },
+  "tradeInVehicle":           { "label": "Veículo na troca",                     "format": "text",    "order": 2 },
+  "tradeInYear":              { "label": "Ano do veículo na troca",              "format": "number",  "order": 3 },
+  "hasDownPayment":           { "label": "Possui entrada",                       "format": "boolean", "order": 4 },
+  "downPaymentCents":         { "label": "Valor da entrada",                     "format": "money",   "order": 5 },
+  "desiredVehicleValueCents": { "label": "Valor aproximado do veículo desejado", "format": "money",   "order": 6 }
+}
+```
+
+`tradeInVehicle`/`tradeInYear` só são enviados quando há troca, e `downPaymentCents` só quando há entrada.
+Valores monetários chegam em centavos inteiros.
+
+### Testar localmente (os dois projetos)
+
+1. Plataforma: `.env.local` com `PUBLIC_LEADS_DEV_ORIGINS=http://localhost:3001`; `npm run dev` → `http://localhost:3000`.
+2. LP: `.env.local` com as 3 variáveis (`NEXT_PUBLIC_KAPA_LEADS_API_URL=http://localhost:3000`); `npm run dev` → `http://localhost:3001`.
+3. Abrir `http://localhost:3001/?utm_source=teste&utm_medium=qa`, preencher o simulador e clicar em **SIMULAR AGORA**.
+4. O lead aparece em `http://localhost:3000/leads`; o detalhe mostra CPF mascarado, campos do `form_schema`, UTMs e "Lead recebido".
+
+Em baterias de teste, lembre do rate limit (10 envios/minuto por IP): a resposta 429 sai antes da checagem de origem,
+sem cabeçalhos CORS, e o navegador a vê como erro de rede (a LP mostra a mensagem amigável).
+
+### Produção
+
+1. Publicar LP e plataforma em HTTPS.
+2. Cadastrar a origem exata da LP em `allowed_origins` da campanha (Admin → Campanhas, ou SQL da [seção 8](#8-cadastrar-o-domínio-da-lp-allowed_origins)).
+3. Na LP, apontar `NEXT_PUBLIC_KAPA_LEADS_API_URL` para o domínio da plataforma e refazer o build.

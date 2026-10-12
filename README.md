@@ -96,7 +96,7 @@ docs/                  documentação (ex.: guia de integração das LPs)
 3. **API pública** `POST /api/public/leads` — validação, CORS por campanha, honeypot, idempotência, rate limit básico. ✅
 4. **Autenticação** — login por e-mail/senha, sessão em cookies, guards no servidor, bloqueio de inativos. ✅
 5. **Admin MVP** — dashboard, leads, detalhe com status/observações/linha do tempo, contato rápido, configurações KAPA. ✅
-6. Integração da LP Vitrine — Duelo de Aprovações.
+6. **Integração da LP Vitrine — Duelo de Aprovações** — LP envia direto do navegador, `form_schema` da campanha, teste local ponta a ponta (ver [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md#10-campanha-integrada-duelo-de-aprovações)). ✅
 
 ## Tarefas futuras (fora do MVP)
 

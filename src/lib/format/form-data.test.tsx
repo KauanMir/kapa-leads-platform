@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { DetailsList } from "@/components/leads/details-list";
-import { formatCents, formatFormData, humanizeKey } from "@/lib/format/form-data";
+import { formatCents, formatFormData, formSchemaSchema, humanizeKey } from "@/lib/format/form-data";
 
 // Normaliza o espaço não separável que o Intl usa em "R$ 15.000,00".
 const plain = (value: string) => value.replace(/ /g, " ");
@@ -72,5 +75,33 @@ describe("formatFormData", () => {
     expect(html).not.toContain("<b>");
     expect(html).toContain("&lt;script&gt;");
     expect(html).toContain("&lt;b&gt;Veículo&lt;/b&gt;");
+  });
+});
+
+describe("form_schema da campanha Duelo de Aprovações (supabase/seed.sql)", () => {
+  const seed = readFileSync(fileURLToPath(new URL("../../../supabase/seed.sql", import.meta.url)), "utf8");
+  const schema = JSON.parse(/'(\{"hasTradeIn".*\})'::jsonb/.exec(seed)?.[1] ?? "null");
+
+  it("é válido para o Admin", () => {
+    expect(formSchemaSchema.safeParse(schema).success).toBe(true);
+  });
+
+  it("formata o formData enviado pela LP", () => {
+    const fromLp = {
+      hasTradeIn: true,
+      tradeInVehicle: "Onix LT 1.0",
+      tradeInYear: 2019,
+      hasDownPayment: true,
+      downPaymentCents: 1500000,
+      desiredVehicleValueCents: null,
+    };
+    expect(formatFormData(fromLp, schema).map((e) => `${e.label}: ${plain(e.value)}`)).toEqual([
+      "Possui veículo na troca: Sim",
+      "Veículo na troca: Onix LT 1.0",
+      "Ano do veículo na troca: 2019",
+      "Possui entrada: Sim",
+      "Valor da entrada: R$ 15.000,00",
+      "Valor aproximado do veículo desejado: —",
+    ]);
   });
 });
