@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import { getSupabasePublicEnv, sessionCookieOptions } from "@/lib/supabase/env";
 
 /**
  * Proxy (antigo middleware):
@@ -18,6 +18,7 @@ export async function proxy(request: NextRequest) {
   const { url, publishableKey } = getSupabasePublicEnv();
 
   const supabase = createServerClient(url, publishableKey, {
+    cookieOptions: sessionCookieOptions(),
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookiesToSet, headers) => {

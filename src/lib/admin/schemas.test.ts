@@ -27,6 +27,9 @@ describe("origens permitidas", () => {
     expect(parseStrictOrigin("https://exemplo.com.br?x=1")).toBeNull();
     expect(parseStrictOrigin("ftp://exemplo.com.br")).toBeNull();
     expect(parseStrictOrigin("exemplo.com.br")).toBeNull();
+    expect(parseStrictOrigin("http://exemplo.com.br")).toBeNull();
+    expect(parseStrictOrigin("https://*.exemplo.com.br")).toBeNull();
+    expect(parseStrictOrigin("*")).toBeNull();
   });
 
   it("normaliza a lista (uma por linha, sem duplicatas)", () => {

@@ -184,11 +184,11 @@ curl -i https://<domínio-da-plataforma>/api/public/leads \
 
 ## 8. Cadastrar o domínio da LP (allowed_origins)
 
-A origem é `protocolo://domínio[:porta]`, **sem** caminho e sem barra final. Cadastre cada variação usada (com e sem `www`, se ambas existirem). Exemplo no SQL Editor:
+A origem é `https://domínio[:porta]`, **sem** caminho, sem barra final e **sem curinga** (`*`). Cadastre a variação com `www` somente se ela realmente servir a LP (se `www` só redireciona, não precisa). Prefira o Admin (Campanhas → Origens permitidas), que valida o formato. Exemplo no SQL Editor:
 
 ```sql
 update public.campaigns
-set allowed_origins = array['https://<domínio-da-lp>', 'https://www.<domínio-da-lp>']
+set allowed_origins = array['https://<domínio-da-lp>']
 where slug = 'duelo-de-aprovacoes';
 ```
 
@@ -217,7 +217,7 @@ Essa variável é **ignorada em produção** (`NODE_ENV=production`, ou seja, `n
   | `PUBLIC_LEADS_RATE_LIMIT_WINDOW_SECONDS` | `60` | 1 a 3600 |
 
   Valor inválido → usa o padrão e registra um aviso (`public_leads_config`) no log. O padrão é folgado de propósito: redes móveis (CGNAT) e Wi-Fi corporativo colocam muitas pessoas atrás do mesmo IP, e um bloqueio falso perde um lead real. Bots insistentes ainda são contidos, e o `429` leva CORS (a LP mostra a mensagem amigável).
-- **Limitações aceitas no MVP:** o contador é por instância e zera em reinícios/deploys; com várias instâncias (serverless) o limite efetivo é maior; o IP vem de `x-forwarded-for`/`x-real-ip`, então a plataforma precisa estar atrás de um proxy confiável que defina esses headers (Cloudflare e Vercel fazem isso).
+- **Limitações aceitas no MVP:** o contador é por instância e zera em reinícios/deploys; com várias instâncias (serverless) o limite efetivo é maior; o IP vem do primeiro valor de `x-forwarded-for` (ou `x-real-ip`), então a plataforma precisa estar atrás de um proxy que sobrescreva esse header (a Vercel faz isso; atrás da Cloudflare, usar `CF-Connecting-IP` — ver [deploy-producao.md §5](deploy-producao.md#5-rate-limit-e-anti-abuso)).
 - **Produção futura — migrar a proteção para a borda antes de escalar o tráfego pago:** Cloudflare (WAF + regra de rate limiting e/ou Turnstile no formulário) ou um limiter distribuído (Redis/KV). O limite em memória é só a primeira camada.
 - O IP do visitante nunca é armazenado no lead.
 
@@ -267,3 +267,5 @@ O `429` volta com CORS e a LP mostra a mensagem amigável.
 1. Publicar LP e plataforma em HTTPS.
 2. Cadastrar a origem exata da LP em `allowed_origins` da campanha (Admin → Campanhas, ou SQL da [seção 8](#8-cadastrar-o-domínio-da-lp-allowed_origins)).
 3. Na LP, apontar `NEXT_PUBLIC_KAPA_LEADS_API_URL` para o domínio da plataforma e refazer o build.
+
+Checklist completo do go-live (variáveis, Supabase Auth, páginas legais, ordem dos passos): [deploy-producao.md](deploy-producao.md).

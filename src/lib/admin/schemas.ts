@@ -30,11 +30,16 @@ export const storeInputSchema = z.object({
   ),
 });
 
-/** Aceita somente protocolo://host[:porta] (sem caminho, query ou credenciais). */
+/**
+ * Aceita somente https://host[:porta] (sem caminho, query, credenciais nem
+ * curinga). http só para localhost/127.0.0.1 (testes locais).
+ */
 export function parseStrictOrigin(value: string): string | null {
   try {
     const url = new URL(value.trim());
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) return null;
+    if (url.hostname.includes("*")) return null;
     if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) return null;
     return url.origin;
   } catch {
@@ -52,7 +57,7 @@ const allowedOrigins = z.string().transform((value, ctx) => {
   for (const line of lines) {
     const origin = parseStrictOrigin(line);
     if (!origin) {
-      ctx.addIssue({ code: "custom", message: `Origem inválida: "${line.slice(0, 80)}". Use https://dominio.com.br, sem caminho.` });
+      ctx.addIssue({ code: "custom", message: `Origem inválida: "${line.slice(0, 80)}". Use https://dominio.com.br, sem caminho e sem *.` });
       return z.NEVER;
     }
     if (!origins.includes(origin)) origins.push(origin);

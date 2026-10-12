@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { cache } from "react";
 
-import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import { getSupabasePublicEnv, sessionCookieOptions } from "@/lib/supabase/env";
 import type { Database } from "@/types/database";
 
 /**
@@ -27,6 +27,7 @@ export const createSupabaseServerClient = cache(async () => {
   const { url, publishableKey } = getSupabasePublicEnv();
 
   return createServerClient<Database>(url, publishableKey, {
+    cookieOptions: sessionCookieOptions(),
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {

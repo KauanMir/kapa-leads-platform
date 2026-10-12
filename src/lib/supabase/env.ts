@@ -7,3 +7,12 @@ export function getSupabasePublicEnv(): { url: string; publishableKey: string } 
   }
   return { url, publishableKey };
 }
+
+/**
+ * Cookies da sessão do Admin. Só o servidor usa o Supabase Auth (não há
+ * cliente no navegador), então podem ser HttpOnly; em produção, só HTTPS.
+ * O resto (path "/", SameSite=Lax, validade) segue o padrão do @supabase/ssr.
+ */
+export function sessionCookieOptions() {
+  return { httpOnly: true, secure: process.env.NODE_ENV === "production" } as const;
+}

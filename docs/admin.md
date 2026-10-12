@@ -65,7 +65,7 @@ Para remover o acesso de SUPER_ADMIN: `update public.profiles set is_super_admin
 
 ### Origens permitidas (allowed_origins)
 
-Uma por linha, no formato `https://dominio.com.br` — sem caminho e sem barra final. Cadastre as variações usadas (com e sem `www`). Sem origem cadastrada, a LP recebe `403 ORIGIN_NOT_ALLOWED`. Detalhes em [integracao-landing-page.md](integracao-landing-page.md#8-cadastrar-o-domínio-da-lp-allowed_origins).
+Uma por linha, no formato `https://dominio.com.br` — sem caminho, sem barra final e sem curinga (`*`); `http` só para `localhost`. Cadastre a variação com `www` somente se ela realmente servir a LP. Sem origem cadastrada, a LP recebe `403 ORIGIN_NOT_ALLOWED`. Detalhes em [integracao-landing-page.md](integracao-landing-page.md#8-cadastrar-o-domínio-da-lp-allowed_origins).
 
 ### form_schema
 

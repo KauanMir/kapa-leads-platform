@@ -82,7 +82,7 @@ docs/                  documentação (ex.: guia de integração das LPs)
 
 ## Regras de segurança (valem desde o primeiro commit)
 
-- `SUPABASE_SECRET_KEY` só no servidor; nunca com prefixo `NEXT_PUBLIC_`.
+- `SUPABASE_SECRET_KEY` só no servidor; nunca com prefixo `NEXT_PUBLIC_` (o build de produção falha se uma `NEXT_PUBLIC_*` parecer secreta).
 - O navegador nunca acessa diretamente a tabela de leads.
 - CPF nunca aparece em logs, URLs, query strings ou na listagem geral; no Admin aparece mascarado por padrão.
 - A API pública só **cria** leads; nunca lista nem devolve dados pessoais.
@@ -97,6 +97,7 @@ docs/                  documentação (ex.: guia de integração das LPs)
 4. **Autenticação** — login por e-mail/senha, sessão em cookies, guards no servidor, bloqueio de inativos. ✅
 5. **Admin MVP** — dashboard, leads, detalhe com status/observações/linha do tempo, contato rápido, configurações KAPA. ✅
 6. **Integração da LP Vitrine — Duelo de Aprovações** — LP envia direto do navegador, `form_schema` da campanha, teste local ponta a ponta (ver [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md#10-campanha-integrada-duelo-de-aprovações)). ✅
+7. **Preparação de produção** — build trava com env incompleta, cookies `Secure`/`HttpOnly`, headers de segurança, origens só `https`, checklist de go-live em [`docs/deploy-producao.md`](docs/deploy-producao.md). Deploy aguardando domínios/hospedagem.
 
 ## Tarefas futuras (fora do MVP)
 
