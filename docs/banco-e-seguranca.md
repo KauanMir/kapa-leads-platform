@@ -67,6 +67,10 @@ update public.profiles set is_super_admin = true where email = 'email-do-admin@e
 
 ## Testes de isolamento (RLS)
 
+> ⚠️ O projeto Supabase atual é **produção**. As suítes remotas são bloqueadas nele por
+> `supabase/tests/production-guard.ts`. Rode-as só contra um projeto Supabase separado de
+> desenvolvimento/testes (ver [deploy-producao.md §8](deploy-producao.md#8-supabase-de-desenvolvimentotestes-pendente)).
+
 `supabase/tests/rls.test.ts` cria lojas, campanhas, leads e usuários temporários (prefixo `rls-test-`) **no projeto remoto** e remove tudo ao final. Só roda com a trava explícita:
 
 ```powershell

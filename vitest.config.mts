@@ -10,7 +10,13 @@ const fromRoot = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 //   api   → `npm run test:api`:   Supabase remoto, exige ALLOW_REMOTE_API_TESTS=true.
 //   admin → `npm run test:admin`: Supabase remoto, exige ALLOW_REMOTE_ADMIN_TESTS=true.
 //   e2e   → `npm run test:e2e`:   servidor rodando + Supabase remoto, exige ALLOW_REMOTE_E2E_TESTS=true.
-const remote = { fileParallelism: false, testTimeout: 30_000, hookTimeout: 120_000 };
+// Remotos nunca rodam contra o Supabase de produção (supabase/tests/production-guard.ts).
+const remote = {
+  fileParallelism: false,
+  testTimeout: 30_000,
+  hookTimeout: 120_000,
+  globalSetup: ["supabase/tests/production-guard.ts"],
+};
 
 export default defineConfig({
   resolve: {

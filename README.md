@@ -47,10 +47,10 @@ npm run dev                  # http://localhost:3000
 | `npm run typecheck` | Gera os tipos de rotas do Next e roda o TypeScript sem emitir arquivos |
 | `npm run check` | `typecheck` + `lint` |
 | `npm test` | Testes unitários (sem rede) |
-| `npm run test:rls` | Testes de isolamento RLS no Supabase remoto (exige `ALLOW_REMOTE_RLS_TESTS=true`) |
-| `npm run test:api` | Testes da API pública no Supabase remoto (exige `ALLOW_REMOTE_API_TESTS=true`) |
-| `npm run test:admin` | Autorização do Admin por papel no Supabase remoto (exige `ALLOW_REMOTE_ADMIN_TESTS=true`) |
-| `npm run test:e2e` | Telas do Admin via HTTP com sessões reais (servidor rodando + `ALLOW_REMOTE_E2E_TESTS=true`) |
+| `npm run test:rls` | Testes de isolamento RLS no Supabase remoto (exige `ALLOW_REMOTE_RLS_TESTS=true`; **bloqueado no Supabase de produção**) |
+| `npm run test:api` | Testes da API pública no Supabase remoto (exige `ALLOW_REMOTE_API_TESTS=true`; **bloqueado no Supabase de produção**) |
+| `npm run test:admin` | Autorização do Admin por papel no Supabase remoto (exige `ALLOW_REMOTE_ADMIN_TESTS=true`; **bloqueado no Supabase de produção**) |
+| `npm run test:e2e` | Telas do Admin via HTTP com sessões reais (servidor rodando + `ALLOW_REMOTE_E2E_TESTS=true`; **bloqueado no Supabase de produção**) |
 | `npm run db:types` | Gera `src/types/database.ts` a partir do projeto Supabase vinculado |
 
 - **Admin** (login, papéis, telas, primeiro SUPER_ADMIN, lojas, campanhas, `allowed_origins`, `form_schema`): [`docs/admin.md`](docs/admin.md).
@@ -97,12 +97,12 @@ docs/                  documentação (ex.: guia de integração das LPs)
 4. **Autenticação** — login por e-mail/senha, sessão em cookies, guards no servidor, bloqueio de inativos. ✅
 5. **Admin MVP** — dashboard, leads, detalhe com status/observações/linha do tempo, contato rápido, configurações KAPA. ✅
 6. **Integração da LP Vitrine — Duelo de Aprovações** — LP envia direto do navegador, `form_schema` da campanha, teste local ponta a ponta (ver [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md#10-campanha-integrada-duelo-de-aprovações)). ✅
-7. **Preparação de produção** — build trava com env incompleta, cookies `Secure`/`HttpOnly`, headers de segurança, origens só `https`, checklist de go-live em [`docs/deploy-producao.md`](docs/deploy-producao.md). Deploy aguardando domínios/hospedagem.
+7. **Preparação de produção** — build trava com env incompleta, cookies `Secure`/`HttpOnly`, headers de segurança, origens só `https`, checklist de go-live em [`docs/deploy-producao.md`](docs/deploy-producao.md). Hospedagem: Vercel Pro (`gru1`), plataforma em `https://leads.assessoriakapa.com.br`.
 
 ## Tarefas futuras (fora do MVP)
 
 - Backup automático do banco (`pg_dump` agendado), já que o Supabase Free não oferece backups gerenciados.
-- Escolha do provedor de hospedagem (Cloudflare como primeira opção; Vercel Pro como alternativa).
+- Projeto Supabase separado para desenvolvimento/testes (o atual é produção; as suítes remotas estão bloqueadas nele).
 - SMTP próprio para convites e redefinição de senha ("esqueci a senha").
 - Revelação auditada do CPF completo (`CPF_REVEALED`).
 - Nomes dos colegas na linha do tempo para STORE_USER (hoje aparece "Membro da equipe"; exige ajuste de RLS/função).
