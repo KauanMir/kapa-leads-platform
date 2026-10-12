@@ -1,6 +1,6 @@
 import { createPublicLeadsHandler, type PublicLeadsLogEntry } from "@/lib/leads/public-leads-handler";
 import { createSupabasePublicLeadsRepository } from "@/lib/leads/public-leads-repository";
-import { FixedWindowRateLimiter } from "@/lib/leads/rate-limit";
+import { FixedWindowRateLimiter, readRateLimitConfig } from "@/lib/leads/rate-limit";
 
 /**
  * POST /api/public/leads — recebe leads das Landing Pages.
@@ -19,6 +19,13 @@ function readDevOrigins(): string[] {
     .filter(Boolean);
 }
 
+/** Limite por IP, em memória (ver PUBLIC_LEADS_RATE_LIMIT_* no .env.example). */
+function createRateLimiter() {
+  const { limit, windowMs, warnings } = readRateLimitConfig(process.env);
+  for (const warning of warnings) console.warn(JSON.stringify({ event: "public_leads_config", warning }));
+  return new FixedWindowRateLimiter({ limit, windowMs });
+}
+
 function log(entry: PublicLeadsLogEntry) {
   const line = JSON.stringify({ event: "public_leads", ...entry });
   if (entry.status >= 500) console.error(line);
@@ -28,8 +35,7 @@ function log(entry: PublicLeadsLogEntry) {
 const handler = createPublicLeadsHandler({
   ...createSupabasePublicLeadsRepository(),
   devOrigins: readDevOrigins(),
-  // 10 envios por minuto por IP (somente em memória).
-  rateLimiter: new FixedWindowRateLimiter({ limit: 10, windowMs: 60_000 }),
+  rateLimiter: createRateLimiter(),
   now: () => new Date(),
   newRequestId: () => crypto.randomUUID(),
   newFakeLeadId: () => crypto.randomUUID(),

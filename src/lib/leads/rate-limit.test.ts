@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FixedWindowRateLimiter, clientIpFromHeaders } from "@/lib/leads/rate-limit";
+import { DEFAULT_RATE_LIMIT, FixedWindowRateLimiter, clientIpFromHeaders, readRateLimitConfig } from "@/lib/leads/rate-limit";
 
 describe("FixedWindowRateLimiter", () => {
   it("libera até o limite e reinicia na próxima janela", () => {
@@ -30,5 +30,29 @@ describe("clientIpFromHeaders", () => {
     expect(clientIpFromHeaders(new Headers({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" }))).toBe("203.0.113.7");
     expect(clientIpFromHeaders(new Headers({ "x-real-ip": "203.0.113.9" }))).toBe("203.0.113.9");
     expect(clientIpFromHeaders(new Headers())).toBeNull();
+  });
+});
+
+describe("readRateLimitConfig", () => {
+  it("padrão: 30 por 60 s", () => {
+    expect(readRateLimitConfig({})).toEqual({ limit: 30, windowMs: 60_000, warnings: [] });
+    expect(DEFAULT_RATE_LIMIT).toEqual({ limit: 30, windowSeconds: 60 });
+  });
+
+  it("lê valores válidos do ambiente", () => {
+    expect(readRateLimitConfig({ PUBLIC_LEADS_RATE_LIMIT_MAX: "60", PUBLIC_LEADS_RATE_LIMIT_WINDOW_SECONDS: " 120 " })).toEqual({
+      limit: 60,
+      windowMs: 120_000,
+      warnings: [],
+    });
+  });
+
+  it("valores inválidos voltam ao padrão com aviso", () => {
+    const config = readRateLimitConfig({ PUBLIC_LEADS_RATE_LIMIT_MAX: "0", PUBLIC_LEADS_RATE_LIMIT_WINDOW_SECONDS: "abc" });
+    expect(config.limit).toBe(30);
+    expect(config.windowMs).toBe(60_000);
+    expect(config.warnings).toHaveLength(2);
+    expect(readRateLimitConfig({ PUBLIC_LEADS_RATE_LIMIT_MAX: "2.5" }).limit).toBe(30);
+    expect(readRateLimitConfig({ PUBLIC_LEADS_RATE_LIMIT_MAX: "" }).warnings).toEqual([]);
   });
 });

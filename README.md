@@ -105,4 +105,4 @@ docs/                  documentação (ex.: guia de integração das LPs)
 - SMTP próprio para convites e redefinição de senha ("esqueci a senha").
 - Revelação auditada do CPF completo (`CPF_REVEALED`).
 - Nomes dos colegas na linha do tempo para STORE_USER (hoje aparece "Membro da equipe"; exige ajuste de RLS/função).
-- Anti-abuso mais forte na API pública (ex.: Cloudflare WAF/Turnstile, rate limit distribuído com Redis/KV, ou assinatura server-side para LPs com backend). O rate limit atual é em memória, por instância.
+- Anti-abuso mais forte na API pública (ex.: Cloudflare WAF/Turnstile, rate limit distribuído com Redis/KV, ou assinatura server-side para LPs com backend). O rate limit atual é em memória, por instância (padrão 30/60 s por IP, ajustável por `PUBLIC_LEADS_RATE_LIMIT_*`) — **migrar para a borda antes de escalar o tráfego pago**.

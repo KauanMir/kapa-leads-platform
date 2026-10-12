@@ -54,6 +54,45 @@ export class FixedWindowRateLimiter implements RateLimiter {
   }
 }
 
+/**
+ * Padrão: 30 envios por 60 s por IP. Folgado de propósito: redes móveis
+ * (CGNAT) e Wi-Fi de empresas colocam muitas pessoas no mesmo IP, e um
+ * bloqueio falso perde um lead real. Bots insistentes ainda são contidos;
+ * proteção forte fica para a borda (Cloudflare WAF/Turnstile ou limiter
+ * distribuído) — ver docs/integracao-landing-page.md.
+ */
+export const DEFAULT_RATE_LIMIT = { limit: 30, windowSeconds: 60 } as const;
+
+const LIMIT_RANGE = [1, 10_000] as const;
+const WINDOW_RANGE = [1, 3_600] as const;
+
+export type RateLimitConfig = { limit: number; windowMs: number; warnings: string[] };
+
+function parseBounded(raw: string | undefined, fallback: number, [min, max]: readonly [number, number], name: string, warnings: string[]) {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw.trim());
+  if (Number.isInteger(value) && value >= min && value <= max) return value;
+  warnings.push(`${name} inválido (use um inteiro entre ${min} e ${max}); usando ${fallback}.`);
+  return fallback;
+}
+
+/**
+ * Lê PUBLIC_LEADS_RATE_LIMIT_MAX e PUBLIC_LEADS_RATE_LIMIT_WINDOW_SECONDS.
+ * Valores ausentes usam o padrão; inválidos usam o padrão e geram aviso.
+ */
+export function readRateLimitConfig(env: Record<string, string | undefined>): RateLimitConfig {
+  const warnings: string[] = [];
+  const limit = parseBounded(env.PUBLIC_LEADS_RATE_LIMIT_MAX, DEFAULT_RATE_LIMIT.limit, LIMIT_RANGE, "PUBLIC_LEADS_RATE_LIMIT_MAX", warnings);
+  const windowSeconds = parseBounded(
+    env.PUBLIC_LEADS_RATE_LIMIT_WINDOW_SECONDS,
+    DEFAULT_RATE_LIMIT.windowSeconds,
+    WINDOW_RANGE,
+    "PUBLIC_LEADS_RATE_LIMIT_WINDOW_SECONDS",
+    warnings,
+  );
+  return { limit, windowMs: windowSeconds * 1000, warnings };
+}
+
 /** IP do cliente a partir dos headers do proxy/plataforma. null se ausente. */
 export function clientIpFromHeaders(headers: Headers): string | null {
   const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim();

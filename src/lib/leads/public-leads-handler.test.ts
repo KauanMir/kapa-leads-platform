@@ -322,6 +322,96 @@ describe("POST /api/public/leads — rate limit", () => {
   });
 });
 
+describe("POST /api/public/leads — CORS consistente nas respostas de erro", () => {
+  const ALLOW = "access-control-allow-origin";
+
+  it("429 para origem autorizada leva CORS (a LP lê o status em vez de 'erro de rede')", async () => {
+    const { handler } = setup({ rateLimiter: new FixedWindowRateLimiter({ limit: 1, windowMs: 60_000 }) });
+    const headers = { "x-forwarded-for": "203.0.113.7" };
+    await handler.POST(post(validBody(), { headers }));
+    const response = await handler.POST(post(validBody(), { headers }));
+    expect(response.status).toBe(429);
+    expect(response.headers.get(ALLOW)).toBe(ORIGIN);
+    expect(response.headers.get("access-control-expose-headers")).toBe("X-Request-Id");
+    expect(response.headers.get("vary")).toBe("Origin");
+  });
+
+  it("429 para origem não autorizada continua sem CORS", async () => {
+    const { handler } = setup({ rateLimiter: new FixedWindowRateLimiter({ limit: 1, windowMs: 60_000 }) });
+    const opts = { origin: "https://evil.example", headers: { "x-forwarded-for": "203.0.113.7" } };
+    await handler.POST(post(validBody(), opts));
+    const response = await handler.POST(post(validBody(), opts));
+    expect(response.status).toBe(429);
+    expect(response.headers.get(ALLOW)).toBeNull();
+  });
+
+  it("429 para origem de desenvolvimento leva CORS sem consultar o banco", async () => {
+    let lookups = 0;
+    const { handler } = setup({
+      devOrigins: ["http://localhost:3001"],
+      isOriginAllowedForAnyCampaign: async () => (lookups++, false),
+      rateLimiter: new FixedWindowRateLimiter({ limit: 1, windowMs: 60_000 }),
+    });
+    const opts = { origin: "http://localhost:3001", headers: { "x-forwarded-for": "203.0.113.7" } };
+    expect((await handler.POST(post(validBody(), opts))).status).toBe(201);
+    const response = await handler.POST(post(validBody(), opts));
+    expect(response.status).toBe(429);
+    expect(response.headers.get(ALLOW)).toBe("http://localhost:3001");
+    expect(lookups).toBe(0);
+  });
+
+  it("rajada de 429: a origem é consultada no banco uma vez só (cache)", async () => {
+    let lookups = 0;
+    const { handler } = setup({
+      isOriginAllowedForAnyCampaign: async (origin) => (lookups++, origin === ORIGIN),
+      rateLimiter: new FixedWindowRateLimiter({ limit: 1, windowMs: 60_000 }),
+    });
+    const headers = { "x-forwarded-for": "203.0.113.7" };
+    expect((await handler.POST(post(validBody(), { headers }))).status).toBe(201);
+    for (let i = 0; i < 20; i++) {
+      const response = await handler.POST(post(validBody(), { headers }));
+      expect(response.status).toBe(429);
+      expect(response.headers.get(ALLOW)).toBe(ORIGIN);
+    }
+    expect(lookups).toBe(1);
+  });
+
+  it("400 (Content-Type/JSON/campaignKey), 413 e 404 levam CORS para origem autorizada", async () => {
+    const { handler } = setup();
+    const responses = [
+      await handler.POST(post(validBody(), { contentType: "text/plain" })),
+      await handler.POST(post("{nao-json")),
+      await handler.POST(post(validBody({ campaignKey: "x" }))),
+      await handler.POST(post(validBody({ formData: { notes: "x".repeat(MAX_BODY_BYTES) } }))),
+      await handler.POST(post(validBody({ campaignKey: `camp_pk_${"b".repeat(32)}` }))),
+      await handler.POST(post(withLead({ cpf: "111.111.111-11" }))),
+    ];
+    expect(responses.map((r) => r.status)).toEqual([400, 400, 400, 413, 404, 400]);
+    for (const response of responses) expect(response.headers.get(ALLOW)).toBe(ORIGIN);
+  });
+
+  it("origem autorizada em OUTRA campanha recebe 403 sem CORS nesta", async () => {
+    const { handler } = setup({}, { allowedOrigins: ["https://outra-lp.example"] });
+    const response = await handler.POST(post(validBody()));
+    expect(response.status).toBe(403);
+    expect(response.headers.get(ALLOW)).toBeNull();
+  });
+
+  it("banco indisponível na checagem de origem: responde o erro original, sem CORS", async () => {
+    const { handler } = setup({
+      isOriginAllowedForAnyCampaign: async () => {
+        throw new RepositoryError("origin_lookup", "08006");
+      },
+      rateLimiter: new FixedWindowRateLimiter({ limit: 1, windowMs: 60_000 }),
+    });
+    const headers = { "x-forwarded-for": "203.0.113.7" };
+    expect((await handler.POST(post(validBody(), { headers }))).status).toBe(201);
+    const response = await handler.POST(post(validBody(), { headers }));
+    expect(response.status).toBe(429);
+    expect(response.headers.get(ALLOW)).toBeNull();
+  });
+});
+
 describe("OPTIONS /api/public/leads (preflight)", () => {
   it("origem autorizada em alguma campanha → 204 com CORS", async () => {
     const { handler } = setup();

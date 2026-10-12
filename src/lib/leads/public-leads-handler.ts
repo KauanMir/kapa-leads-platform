@@ -15,6 +15,9 @@ import { clientIpFromHeaders, type RateLimiter } from "@/lib/leads/rate-limit";
 
 export const MAX_BODY_BYTES = 16 * 1024;
 const PREFLIGHT_MAX_AGE_SECONDS = 600;
+/** Cache de "origem autorizada em alguma campanha" (preflight e CORS de erros). */
+export const ORIGIN_CACHE_TTL_MS = 60_000;
+const ORIGIN_CACHE_MAX_ENTRIES = 500;
 
 export type PublicLeadErrorCode =
   | "INVALID_PAYLOAD"
@@ -187,6 +190,24 @@ function issuePaths(issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey> }>)
 // ---------------------------------------------------------------------
 
 export function createPublicLeadsHandler(deps: PublicLeadsDeps) {
+  /**
+   * Origem aceita em dev ou em alguma campanha ativa. A consulta ao banco fica
+   * em cache curto (por instância) para que respostas baratas — como 429 em
+   * rajada — não virem uma consulta ao banco cada uma. Erros não são cacheados.
+   */
+  const originCache = new Map<string, { allowed: boolean; at: number }>();
+
+  async function isOriginAllowedAnywhere(origin: string): Promise<boolean> {
+    if (originInList(origin, deps.devOrigins)) return true;
+    const nowMs = deps.now().getTime();
+    const cached = originCache.get(origin);
+    if (cached && nowMs - cached.at < ORIGIN_CACHE_TTL_MS) return cached.allowed;
+    const allowed = await deps.isOriginAllowedForAnyCampaign(origin);
+    if (originCache.size >= ORIGIN_CACHE_MAX_ENTRIES) originCache.clear();
+    originCache.set(origin, { allowed, at: nowMs });
+    return allowed;
+  }
+
   async function POST(request: Request): Promise<Response> {
     const startedAt = deps.now().getTime();
     const requestId = deps.newRequestId();
@@ -212,13 +233,27 @@ export function createPublicLeadsHandler(deps: PublicLeadsDeps) {
       return jsonResponse(status, body, requestId, corsOrigin);
     };
 
-    const fail = (code: PublicLeadErrorCode, extra?: { fields?: string[]; dbCode?: string }) =>
-      finish(
+    /**
+     * Respostas emitidas antes da checagem por campanha (429, 400, 413, 404,
+     * 500) também levam CORS quando a origem é autorizada em algum lugar
+     * (mesmo critério do preflight): assim a LP consegue ler o status em vez
+     * de ver um "erro de rede". 403 nunca leva CORS.
+     */
+    const fail = async (code: PublicLeadErrorCode, extra?: { fields?: string[]; dbCode?: string }) => {
+      if (corsOrigin === null && code !== "ORIGIN_NOT_ALLOWED" && origin !== null) {
+        try {
+          if (await isOriginAllowedAnywhere(origin)) corsOrigin = origin;
+        } catch {
+          // Banco indisponível: responde sem CORS.
+        }
+      }
+      return finish(
         STATUS_BY_CODE[code],
         { success: false, error: code, requestId, ...(extra?.fields ? { fields: extra.fields } : {}) },
         code,
         extra?.dbCode,
       );
+    };
 
     try {
       // 1. Rate limit (antes de qualquer trabalho caro).
@@ -309,9 +344,7 @@ export function createPublicLeadsHandler(deps: PublicLeadsDeps) {
     try {
       // No preflight não há corpo (nem campaignKey): a origem precisa estar
       // autorizada em alguma campanha ativa. O POST revalida por campanha.
-      const allowed =
-        origin !== null &&
-        (originInList(origin, deps.devOrigins) || (await deps.isOriginAllowedForAnyCampaign(origin)));
+      const allowed = origin !== null && (await isOriginAllowedAnywhere(origin));
 
       if (!allowed) {
         log(403, "ORIGIN_NOT_ALLOWED");

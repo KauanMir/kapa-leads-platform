@@ -115,7 +115,7 @@ A data do consentimento (`consent_at`) é registrada pelo servidor; a LP não en
 
 As respostas nunca devolvem dados pessoais. O header `X-Request-Id` (também no corpo dos erros) identifica a requisição nos logs — informe-o ao suporte.
 
-Os códigos 403 e 404 podem chegar ao navegador como **erro de CORS** (sem acesso ao corpo), pois a origem não foi validada. Verifique o status na aba Network.
+**CORS nas respostas:** toda resposta para uma origem autorizada (cadastrada nesta campanha, em alguma campanha ativa, ou em `PUBLIC_LEADS_DEV_ORIGINS` fora de produção) leva `Access-Control-Allow-Origin` — inclusive `400`, `404`, `413`, `429` e `500` —, para a LP conseguir ler o status. Só o `403 ORIGIN_NOT_ALLOWED` sai **sem** CORS (o navegador mostra erro de CORS; veja o status na aba Network). A checagem "origem autorizada em alguma campanha" fica em cache por até 60 s por instância: uma origem recém-cadastrada pode levar até 1 minuto para valer no preflight.
 
 ## 5. Idempotência (clientSubmissionId)
 
@@ -209,7 +209,16 @@ Essa variável é **ignorada em produção** (`NODE_ENV=production`, ou seja, `n
 ## 9. Limites e proteção contra abuso
 
 - Corpo máximo: 16 KB; somente `application/json`.
-- Rate limit: 10 envios por minuto por IP, **em memória** (por instância do servidor; o IP não é gravado). É uma proteção básica: com várias instâncias ou IPs compartilhados (redes móveis) o comportamento varia. Proteção mais forte (Cloudflare WAF/Turnstile ou Redis) está prevista para o momento do deploy.
+- Rate limit por IP, **em memória** (por instância do servidor; o IP nunca é gravado). Padrão: **30 envios a cada 60 s**, configurável:
+
+  | Variável | Padrão | Faixa aceita |
+  |---|---|---|
+  | `PUBLIC_LEADS_RATE_LIMIT_MAX` | `30` | 1 a 10000 |
+  | `PUBLIC_LEADS_RATE_LIMIT_WINDOW_SECONDS` | `60` | 1 a 3600 |
+
+  Valor inválido → usa o padrão e registra um aviso (`public_leads_config`) no log. O padrão é folgado de propósito: redes móveis (CGNAT) e Wi-Fi corporativo colocam muitas pessoas atrás do mesmo IP, e um bloqueio falso perde um lead real. Bots insistentes ainda são contidos, e o `429` leva CORS (a LP mostra a mensagem amigável).
+- **Limitações aceitas no MVP:** o contador é por instância e zera em reinícios/deploys; com várias instâncias (serverless) o limite efetivo é maior; o IP vem de `x-forwarded-for`/`x-real-ip`, então a plataforma precisa estar atrás de um proxy confiável que defina esses headers (Cloudflare e Vercel fazem isso).
+- **Produção futura — migrar a proteção para a borda antes de escalar o tráfego pago:** Cloudflare (WAF + regra de rate limiting e/ou Turnstile no formulário) ou um limiter distribuído (Redis/KV). O limite em memória é só a primeira camada.
 - O IP do visitante nunca é armazenado no lead.
 
 ## 10. Campanha integrada: Duelo de Aprovações
@@ -250,8 +259,8 @@ Valores monetários chegam em centavos inteiros.
 3. Abrir `http://localhost:3001/?utm_source=teste&utm_medium=qa`, preencher o simulador e clicar em **SIMULAR AGORA**.
 4. O lead aparece em `http://localhost:3000/leads`; o detalhe mostra CPF mascarado, campos do `form_schema`, UTMs e "Lead recebido".
 
-Em baterias de teste, lembre do rate limit (10 envios/minuto por IP): a resposta 429 sai antes da checagem de origem,
-sem cabeçalhos CORS, e o navegador a vê como erro de rede (a LP mostra a mensagem amigável).
+Em baterias de teste, lembre do rate limit (padrão 30 envios/minuto por IP; ajustável por `PUBLIC_LEADS_RATE_LIMIT_*`).
+O `429` volta com CORS e a LP mostra a mensagem amigável.
 
 ### Produção
 
