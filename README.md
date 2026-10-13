@@ -32,7 +32,7 @@ Docker **não** é necessário. As migrations ficam versionadas em `supabase/mig
 
 ```bash
 npm install
-cp .env.example .env.local   # preencher quando o Supabase for configurado
+cp .env.example .env.local   # preencher com o Supabase DEV (docs/ambientes.md)
 npm run dev                  # http://localhost:3000
 ```
 
@@ -47,13 +47,18 @@ npm run dev                  # http://localhost:3000
 | `npm run typecheck` | Gera os tipos de rotas do Next e roda o TypeScript sem emitir arquivos |
 | `npm run check` | `typecheck` + `lint` |
 | `npm test` | Testes unitários (sem rede) |
-| `npm run test:rls` | Testes de isolamento RLS no Supabase remoto (exige `ALLOW_REMOTE_RLS_TESTS=true`; **bloqueado no Supabase de produção**) |
-| `npm run test:api` | Testes da API pública no Supabase remoto (exige `ALLOW_REMOTE_API_TESTS=true`; **bloqueado no Supabase de produção**) |
-| `npm run test:admin` | Autorização do Admin por papel no Supabase remoto (exige `ALLOW_REMOTE_ADMIN_TESTS=true`; **bloqueado no Supabase de produção**) |
-| `npm run test:e2e` | Telas do Admin via HTTP com sessões reais (servidor rodando + `ALLOW_REMOTE_E2E_TESTS=true`; **bloqueado no Supabase de produção**) |
-| `npm run db:types` | Gera `src/types/database.ts` a partir do projeto Supabase vinculado |
+| `npm run test:rls` | Testes de isolamento RLS no Supabase remoto (exige `ALLOW_REMOTE_RLS_TESTS=true`; **só roda no Supabase DEV**) |
+| `npm run test:api` | Testes da API pública no Supabase remoto (exige `ALLOW_REMOTE_API_TESTS=true`; **só roda no Supabase DEV**) |
+| `npm run test:admin` | Autorização do Admin por papel no Supabase remoto (exige `ALLOW_REMOTE_ADMIN_TESTS=true`; **só roda no Supabase DEV**) |
+| `npm run test:e2e` | Telas do Admin via HTTP com sessões reais (servidor rodando + `ALLOW_REMOTE_E2E_TESTS=true`; **só roda no Supabase DEV**) |
+| `npm run db:types` | Gera `src/types/database.ts` a partir do projeto Supabase vinculado (o DEV) |
+| `npm run dev:setup` | Aplica as migrations + `supabase/seed-dev.sql` no Supabase DEV (`-- status` só mostra o estado) |
+| `npm run db:compare` | Compara a estrutura DEV x produção (somente leitura) |
+| `npm run prod:check` | Conferência de produção, só contagens (somente leitura) |
 
 - **Admin** (login, papéis, telas, primeiro SUPER_ADMIN, lojas, campanhas, `allowed_origins`, `form_schema`): [`docs/admin.md`](docs/admin.md).
+- **Ambientes DEV x PRODUÇÃO**, travas e como rodar os testes: [`docs/ambientes.md`](docs/ambientes.md).
+- Usuários de loja, papéis e fluxo de atendimento: [`docs/operacao-lojas.md`](docs/operacao-lojas.md).
 - Banco, RLS e como aplicar migrations: [`docs/banco-e-seguranca.md`](docs/banco-e-seguranca.md).
 - API pública para Landing Pages (`POST /api/public/leads`): [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md).
 
@@ -98,11 +103,11 @@ docs/                  documentação (ex.: guia de integração das LPs)
 5. **Admin MVP** — dashboard, leads, detalhe com status/observações/linha do tempo, contato rápido, configurações KAPA. ✅
 6. **Integração da LP Vitrine — Duelo de Aprovações** — LP envia direto do navegador, `form_schema` da campanha, teste local ponta a ponta (ver [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md#10-campanha-integrada-duelo-de-aprovações)). ✅
 7. **Preparação de produção** — build trava com env incompleta, cookies `Secure`/`HttpOnly`, headers de segurança, origens só `https`, checklist de go-live em [`docs/deploy-producao.md`](docs/deploy-producao.md). Hospedagem: Vercel (`gru1`; Hobby no desenvolvimento, Pro antes da campanha), plataforma em `https://leads.assessoriakapa.com.br`.
+8. **Preparação para operação real** — Supabase DEV separado (local, testes e previews), travas DEV x PRODUÇÃO pelo ref do projeto, onboarding de usuários de loja e checklist de go-live ([`docs/ambientes.md`](docs/ambientes.md), [`docs/operacao-lojas.md`](docs/operacao-lojas.md), [`docs/deploy-producao.md §7`](docs/deploy-producao.md#7-checklist-de-entrada-em-operação-go-live)).
 
 ## Tarefas futuras (fora do MVP)
 
 - Backup automático do banco (`pg_dump` agendado), já que o Supabase Free não oferece backups gerenciados.
-- Projeto Supabase separado para desenvolvimento/testes (o atual é produção; as suítes remotas estão bloqueadas nele).
 - SMTP próprio para convites e redefinição de senha ("esqueci a senha").
 - Revelação auditada do CPF completo (`CPF_REVEALED`).
 - Nomes dos colegas na linha do tempo para STORE_USER (hoje aparece "Membro da equipe"; exige ajuste de RLS/função).

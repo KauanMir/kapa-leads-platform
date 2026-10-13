@@ -10,7 +10,7 @@ Os itens marcados com ⏳ dependem de decisões ainda em aberto.
 | Hospedagem | **Vercel**, time `kauan-s-projects3`, projetos `kapa-leads-platform` e `duelo-de-aprovacoes` (ligados ao GitHub, deploy de produção pela `main`). Plano **Hobby** durante o desenvolvimento; **upgrade do mesmo time para Pro antes da campanha operar de verdade** (o Hobby não permite uso comercial). Sem Cloudflare/OpenNext nesta fase. |
 | Domínio da plataforma | `https://leads.assessoriakapa.com.br` |
 | Domínio da LP | `https://duelo.assessoriakapa.com.br` (em uso). Migrar para `https://duelo.vitrineveiculos.com.br` **só com autorização explícita**, quando o projeto estiver pronto (ver seção 3). |
-| Supabase | O projeto atual é **PRODUÇÃO** (região São Paulo). Testes remotos bloqueados nele (seção 8). |
+| Supabase | Dois projetos (região São Paulo): **PRODUÇÃO** (`scjkyzdagwkscuxydgld`, só o deploy de produção) e **DEV** (desenvolvimento, testes e previews). Ver [ambientes.md](ambientes.md). |
 | Região das funções | `gru1` (São Paulo, junto do banco) — `vercel.json`. A LP é estática. |
 | Política de Privacidade | `https://assessoriakapa.com.br/privacidade` (em revisão antes do tráfego real) |
 | Termos de Uso | `https://assessoriakapa.com.br/termos` (em revisão antes do tráfego real) |
@@ -29,9 +29,8 @@ Os itens marcados com ⏳ dependem de decisões ainda em aberto.
 | `PUBLIC_LEADS_DEV_ORIGINS` | **não definir** | Ignorada com `NODE_ENV=production` (conferido: `http://localhost:3001` recebe 403). |
 | `ALLOW_REMOTE_*_TESTS`, `E2E_BASE_URL` | **não definir** | Só para testes locais. |
 
-Na Vercel, as variáveis existem só no ambiente **Production** (de propósito: um preview não deve usar o banco de
-produção). Por isso, deploys de preview de outras branches falham no build até existir um Supabase de
-desenvolvimento (seção 8).
+Na Vercel: **Production** → Supabase de produção; **Preview** e **Development** → Supabase DEV. O build confere o
+ref do projeto e falha se um preview apontar para produção (ou a produção para outro projeto) — [ambientes.md §2](ambientes.md#2-travas-identificação-pelo-ref-do-projeto-nunca-pelo-nome-da-variável).
 
 O `next build` **falha de propósito** se faltar uma das três variáveis do Supabase, se a URL não for `https`, ou se
 alguma variável `NEXT_PUBLIC_*` parecer uma chave secreta (`sb_secret_…`, nomes com `SECRET`/`SERVICE_ROLE`).
@@ -68,8 +67,8 @@ importam para e-mails enviados pelo próprio Supabase (convite / redefinição p
 antes do go-live:
 
 - **Site URL:** `https://leads.assessoriakapa.com.br`
-- **Redirect URLs:** `https://leads.assessoriakapa.com.br/**` e, por enquanto, `http://localhost:3000/**` (mantido
-  para desenvolvimento enquanto não existe o Supabase separado da seção 8; remover quando ele existir).
+- **Redirect URLs:** `https://leads.assessoriakapa.com.br/**`. (`http://localhost:3000/**` vai para o projeto DEV; remover
+  do projeto de produção quando o DEV estiver em uso.)
 
 Configurado em 13/10/2026.
 
@@ -125,29 +124,38 @@ Todas as rotas: `X-Frame-Options: DENY`, `CSP frame-ancestors 'none'`, `X-Conten
 `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` restritiva; sem `X-Powered-By`.
 Páginas do Admin: `Cache-Control: private, no-store`. HSTS fica com o provedor/HTTPS do domínio.
 
-## 7. Ordem sugerida do go-live
+## 7. Checklist de entrada em operação (go-live)
 
-Situação em 13/10/2026 (✅ feito, ⏳ pendente):
+Situação em 13/10/2026 (✅ feito, ⏳ pendente). Fluxo diário dos usuários: [operacao-lojas.md](operacao-lojas.md).
 
-1. ✅ Publicar Política de Privacidade e Termos de Uso (⏳ revisão jurídica do texto).
-2. ✅ Deploy da plataforma com as variáveis da seção 1. ⏳ Login no domínio final com um usuário real (feito pelo
-   responsável, no navegador).
-3. ✅ Supabase Auth: Site URL / Redirect URLs (seção 2).
-4. ✅ Deploy da LP com as variáveis da seção 1.
-5. ✅ Cadastrar a origem da LP na campanha (seção 3).
-6. ✅ Teste real pela LP de produção: lead "TESTE Fase 7 (pode apagar)" gravado (201) com formData, UTMs,
-   `page_url`, `referrer`, consentimento e evento `CREATED`; reenvio do mesmo payload → 200 com o mesmo `leadId`,
-   sem duplicar. ⏳ Conferir esse lead no Admin.
-7. ⏳ Upgrade do time da Vercel para Pro, apagar os leads "TESTE Demonstracao KAPA (pode apagar)" e
-   "TESTE Fase 7 (pode apagar)" e só então liberar o tráfego pago.
+**Infraestrutura**
 
-## 8. Supabase de desenvolvimento/testes (pendente)
+1. ✅ Domínios e HTTPS: `leads.assessoriakapa.com.br` (Admin/API) e `duelo.assessoriakapa.com.br` (LP).
+2. ✅ Supabase Auth: Site URL / Redirect URLs (seção 2).
+3. ✅ Origem da LP cadastrada na campanha (seção 3).
+4. ✅ Teste real LP de produção → API → Supabase → Admin (Fase 7); leads de teste apagados (produção com 0 leads).
+5. ⏳ Supabase DEV separado; previews e testes só no DEV ([ambientes.md](ambientes.md)).
+6. ⏳ Suítes remotas verdes no DEV; `npm run prod:check` OK.
 
-O projeto Supabase atual é **produção**. As suítes remotas (`test:rls`, `test:api`, `test:admin`, `test:e2e`) criam e
-apagam usuários, lojas e leads; por isso `supabase/tests/production-guard.ts` **bloqueia** essas suítes quando
-`NEXT_PUBLIC_SUPABASE_URL` aponta para o projeto de produção — mesmo com `ALLOW_REMOTE_*=true`.
+**Pessoas**
 
-**Necessário:** criar um projeto Supabase separado para desenvolvimento/testes, aplicar as migrations
-(`docs/banco-e-seguranca.md`) e apontar o `.env.local` de desenvolvimento para ele. Até lá, só `npm test`
-(unitários, sem rede) roda localmente. O `npm run dev` local também usa o banco de produção enquanto o `.env.local`
-apontar para ele: cuidado com dados de teste.
+7. ⏳ Primeiro STORE_ADMIN real da Vitrine (e STORE_USERs, se houver), vinculados só à Vitrine Veículos.
+8. ⏳ Checagem de permissões com os usuários reais ([operacao-lojas.md §5](operacao-lojas.md#5-checagem-depois-de-criar-os-usuários-reais)).
+
+**ANTES DE TRÁFEGO REAL (bloqueantes)**
+
+9. ⏳ **Revisão jurídica/comercial final** da Política de Privacidade e dos Termos de Uso (seção 4).
+10. ⏳ **"PRÉ-APROVADO"**: validação comercial/jurídica do texto da LP antes de campanha pública.
+11. ⏳ **ANTES DE OPERAÇÃO COMERCIAL REAL: upgrade do time da Vercel para Pro** (o Hobby não permite uso comercial).
+12. ⏳ Antes de escalar o tráfego pago: proteção na borda (seção 5).
+
+**Fora desta etapa (só com autorização explícita)**
+
+- Migrar a LP para `duelo.vitrineveiculos.com.br` (seção 3).
+- Backup automático do banco (`pg_dump` agendado).
+
+## 8. Supabase de desenvolvimento/testes
+
+Ver [ambientes.md](ambientes.md). As suítes remotas (`test:rls`, `test:api`, `test:admin`, `test:e2e`) criam e
+apagam usuários, lojas e leads e só rodam no Supabase DEV — `supabase/tests/production-guard.ts` bloqueia qualquer
+outro projeto, inclusive produção, mesmo com `ALLOW_REMOTE_*=true`.

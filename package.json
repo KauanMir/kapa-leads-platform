@@ -17,7 +17,10 @@
     "test:api": "vitest run --project api",
     "test:admin": "vitest run --project admin",
     "test:e2e": "vitest run --project e2e",
-    "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts"
+    "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts",
+    "dev:setup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev-setup.mjs",
+    "db:compare": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/db-compare.mjs",
+    "prod:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-production.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -13,6 +13,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomInt, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { assertDevSupabase } from "./production-guard";
+
 try {
   process.loadEnvFile(".env.local");
 } catch {
@@ -25,6 +27,9 @@ if (process.env.ALLOW_REMOTE_RLS_TESTS !== "true") {
       "Para executar, defina ALLOW_REMOTE_RLS_TESTS=true.",
   );
 }
+
+// Defesa em profundidade (o globalSetup já confere): nunca rodar fora do Supabase DEV.
+assertDevSupabase(process.env);
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;

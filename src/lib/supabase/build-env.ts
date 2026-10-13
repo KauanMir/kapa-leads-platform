@@ -2,10 +2,15 @@
  * Checagem das variáveis para o build de produção (next.config.ts).
  * Sem imports com "@/": o next.config não resolve o alias.
  *
+ * Na Vercel (VERCEL_ENV), o build também confere QUAL Supabase está
+ * configurado: Production → só o de produção; Preview/Development → só DEV.
+ *
  * NEXT_PUBLIC_* são embutidas no build: sem elas o deploy sobe quebrado.
  * SUPABASE_SECRET_KEY é lida em runtime, mas sem ela a API pública e o Admin
  * de configuração falham — melhor travar o deploy.
  */
+import { supabaseProjectKind } from "./project";
+
 export function buildEnvErrors(env: Record<string, string | undefined>): string[] {
   const errors: string[] = [];
 
@@ -19,6 +24,21 @@ export function buildEnvErrors(env: Record<string, string | undefined>): string[
       if (protocol !== "https:" && !(protocol === "http:" && local)) errors.push("NEXT_PUBLIC_SUPABASE_URL precisa ser https.");
     } catch {
       errors.push("NEXT_PUBLIC_SUPABASE_URL inválida.");
+    }
+  }
+
+  // Separação DEV x PRODUÇÃO na Vercel (docs/ambientes.md), decidida pelo ref do projeto.
+  if (url) {
+    const kind = supabaseProjectKind(url);
+    if (env.VERCEL_ENV === "production" && kind !== "production") {
+      errors.push("Deploy de PRODUÇÃO precisa usar o Supabase de produção (NEXT_PUBLIC_SUPABASE_URL aponta para outro projeto).");
+    }
+    if ((env.VERCEL_ENV === "preview" || env.VERCEL_ENV === "development") && kind !== "dev") {
+      errors.push(
+        kind === "production"
+          ? "Deploy de PREVIEW não pode usar o Supabase de PRODUÇÃO. Configure as variáveis do Supabase DEV no ambiente Preview."
+          : "Deploy de PREVIEW precisa usar um Supabase DEV conhecido (DEV_SUPABASE_REFS em src/lib/supabase/project.ts).",
+      );
     }
   }
 

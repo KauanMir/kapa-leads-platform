@@ -7,6 +7,8 @@ import { randomInt, randomUUID } from "node:crypto";
 
 import type { Database } from "@/types/database";
 
+import { assertDevSupabase } from "./production-guard";
+
 export function loadRemoteEnv(flag: string) {
   try {
     process.loadEnvFile(".env.local");
@@ -16,6 +18,8 @@ export function loadRemoteEnv(flag: string) {
   if (process.env[flag] !== "true") {
     throw new Error(`Testes remotos bloqueados. Eles criam e removem dados reais no Supabase. Para executar, defina ${flag}=true.`);
   }
+  // Defesa em profundidade (o globalSetup já confere): nunca rodar fora do Supabase DEV.
+  assertDevSupabase(process.env);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const secretKey = process.env.SUPABASE_SECRET_KEY;

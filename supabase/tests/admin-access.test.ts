@@ -309,3 +309,46 @@ describe("equipe e configurações", () => {
     expect(rotated).not.toBe(before?.campaignKey);
   });
 });
+
+describe("fluxo de atendimento (vendedor STORE_USER)", () => {
+  const statusTrail = (events: { type: string; payload: unknown }[]) =>
+    events.filter((e) => e.type === "STATUS_CHANGED").map((e) => (e.payload as { to?: string } | null)?.to);
+
+  it("Novo → Contatado → Em atendimento → Ganho, com observações na linha do tempo", async () => {
+    const lead = (await insertLead(campaignA, "Diego Fluxo Ganho", "11987650004")).id;
+    const db = users.userA.db;
+
+    expect((await getLeadDetail(db, lead))?.status).toBe("NEW");
+    expect(await updateLeadStatus(db, lead, "CONTACTED")).toBe(true);
+    expect((await addLeadNote(db, lead, "Primeiro contato pelo WhatsApp.")).ok).toBe(true);
+    expect(await updateLeadStatus(db, lead, "IN_PROGRESS")).toBe(true);
+    expect((await addLeadNote(db, lead, "Cliente vem à loja no sábado.")).ok).toBe(true);
+    expect(await updateLeadStatus(db, lead, "WON")).toBe(true);
+
+    expect((await getLeadDetail(db, lead))?.status).toBe("WON");
+    const history = await getLeadHistory(db, lead);
+    expect(history.events.map((e) => e.type)).toEqual(["CREATED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED"]);
+    expect(statusTrail(history.events)).toEqual(["CONTACTED", "IN_PROGRESS", "WON"]);
+    expect(history.notes.map((n) => n.body)).toEqual(["Primeiro contato pelo WhatsApp.", "Cliente vem à loja no sábado."]);
+    expect(history.events.filter((e) => e.type !== "CREATED").every((e) => e.actor_id === users.userA.id)).toBe(true);
+
+    const timeline = buildTimeline(history.events, history.notes, users.userA.id);
+    expect(timeline.map((i) => i.kind)).toEqual(["created", "status", "note", "status", "note", "status"]);
+  });
+
+  it("Novo → Contatado → Perdido, com observação do motivo", async () => {
+    const lead = (await insertLead(campaignA, "Elisa Fluxo Perdido", "11987650005")).id;
+    const db = users.userA.db;
+
+    expect(await updateLeadStatus(db, lead, "CONTACTED")).toBe(true);
+    expect((await addLeadNote(db, lead, "Cliente desistiu: comprou em outra loja.")).ok).toBe(true);
+    expect(await updateLeadStatus(db, lead, "LOST")).toBe(true);
+
+    const history = await getLeadHistory(db, lead);
+    expect(statusTrail(history.events)).toEqual(["CONTACTED", "LOST"]);
+    expect(history.events.map((e) => e.type)).toEqual(["CREATED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED"]);
+
+    const counts = await getDashboardCounts(db, {});
+    expect(counts).toMatchObject({ WON: 1, LOST: 1 });
+  });
+});

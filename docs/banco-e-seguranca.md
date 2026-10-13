@@ -46,10 +46,13 @@ Usuários/vínculos inativos (`profiles.is_active`, `store_members.is_active`) p
 
 ## Aplicar no Supabase remoto (sem Docker)
 
+No **DEV**: `npm run dev:setup` (migrations + `seed-dev.sql`, nunca o `seed.sql` de produção). Abaixo, o processo manual
+(usado na criação da produção).
+
 ```bash
 npx supabase login                          # abre o navegador (token pessoal)
 npx supabase link --project-ref <ref>       # pede a senha do banco
-npx supabase db push --dry-run --include-seed   # revisar
+npx supabase db push --dry-run --include-seed   # revisar (produção: SOMENTE com autorização)
 npx supabase db push --include-seed
 npm run db:types                            # gera src/types/database.ts
 ```
@@ -67,9 +70,8 @@ update public.profiles set is_super_admin = true where email = 'email-do-admin@e
 
 ## Testes de isolamento (RLS)
 
-> ⚠️ O projeto Supabase atual é **produção**. As suítes remotas são bloqueadas nele por
-> `supabase/tests/production-guard.ts`. Rode-as só contra um projeto Supabase separado de
-> desenvolvimento/testes (ver [deploy-producao.md §8](deploy-producao.md#8-supabase-de-desenvolvimentotestes-pendente)).
+> ⚠️ As suítes remotas só rodam no **Supabase DEV** (`supabase/tests/production-guard.ts` bloqueia produção e
+> qualquer projeto fora de `DEV_SUPABASE_REFS`). Ver [ambientes.md](ambientes.md).
 
 `supabase/tests/rls.test.ts` cria lojas, campanhas, leads e usuários temporários (prefixo `rls-test-`) **no projeto remoto** e remove tudo ao final. Só roda com a trava explícita:
 
