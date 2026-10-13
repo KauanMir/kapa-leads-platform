@@ -1,6 +1,10 @@
-# Operação das lojas — SDR, gerente, atendimento e KPIs
+# Operação das lojas — SDR, gerente e atendimento
 
 Guia para a loja (ex.: Vitrine Veículos) usar o Admin `https://leads.assessoriakapa.com.br`.
+
+> **O KAPA Leads não é um CRM.** É um sistema simples para receber o lead da LP, listar, abrir, ver as informações
+> básicas, ligar/abrir o WhatsApp e copiar o resumo. O CRM de verdade é o **KAPA CRM**. A passagem para o vendedor é
+> manual (WhatsApp pessoal). Não há Meta, WhatsApp oficial, automações nem distribuição automática.
 
 ## 1. Modelo de operação
 
@@ -96,8 +100,9 @@ A coluna **Responsável** mostra o nome do SDR ou "Sem responsável".
 | **Ganho** | Venda concluída. |
 | **Perdido** | Encerrado sem venda (desistiu, comprou em outro lugar, sem retorno). Registrar o motivo numa observação. |
 
-Na tela do lead: **LIGAR**, **WHATSAPP** (abre o WhatsApp com mensagem sugerida, nada é enviado sozinho),
-**COPIAR TELEFONE**, **COPIAR RESUMO**, seletor de **status**, **responsável** e campo de **observação**.
+Tela do lead, na ordem: **nome**, **telefone**, botões **LIGAR** · **WHATSAPP** (abre o WhatsApp com mensagem
+sugerida, nada é enviado sozinho) · **COPIAR RESUMO**, dados do formulário, dados pessoais (CPF mascarado), campanha
+e origem e, por último, **responsável**, **status** e **observações/histórico**.
 
 ## 7. Repasse ao vendedor (manual)
 
@@ -107,18 +112,22 @@ Na tela do lead: **LIGAR**, **WHATSAPP** (abre o WhatsApp com mensagem sugerida,
    Lead: João Silva
    Telefone: (61) 99999-9999
    Campanha: Duelo de Aprovações
-   Possui veículo na troca: Sim
+
+   Troca: Sim
    Veículo na troca: Onix
-   Ano do veículo na troca: 2021
-   Possui entrada: Sim
+   Ano do veículo: 2021
+
+   Entrada: Sim
    Valor da entrada: R$ 15.000,00
-   Valor aproximado do veículo desejado: R$ 80.000,00
+
+   Valor desejado: R$ 80.000,00
    ```
 
-   Os campos vêm do formulário da campanha (qualquer campanha, não só o Duelo). O resumo **nunca** inclui CPF,
-   data de nascimento, UTMs/origem, ids ou links internos.
+   Linhas sem informação são omitidas (ex.: "Troca: Não" não mostra veículo nem ano). Campanhas com outros campos
+   entram no fim, com os rótulos do formulário. O resumo **nunca** inclui CPF, data de nascimento, UTMs/origem, ids
+   ou links internos. Uma **data** no campo de texto do veículo é tratada como dado errado e fica de fora.
 2. Cole no WhatsApp do vendedor que você escolher. Nada é enviado automaticamente.
-3. Clique em **ADICIONAR OBSERVAÇÃO** (aparece depois de copiar) e complete: "Encaminhado ao vendedor João".
+3. Se quiser, registre uma observação: "Encaminhado ao vendedor João".
 4. Mude o status para **Em atendimento**.
 
 Vendedores não são cadastrados na plataforma nesta fase: o nome do vendedor fica só na observação.
@@ -141,24 +150,17 @@ Tudo em ordem cronológica, com quem fez e quando: lead recebido (`CREATED`), at
 (`NOTE_ADDED`), mudanças de status (`STATUS_CHANGED`) e CPF visualizado (`CPF_REVEALED`, só gerente/KAPA).
 Observações não podem ser editadas nem apagadas (histórico confiável).
 
-## 10. KPIs (Dashboard)
+## 10. Dashboard (contagens simples)
 
-Números simples, sem gráficos e sem ranking. Seguem o período, a campanha e a loja escolhidos no filtro (período
-= data de chegada do lead).
+Só contagens, sem gráficos, ranking ou métricas de CRM. Seguem o período, a campanha e a loja escolhidos no filtro
+(período = data de chegada do lead).
 
-**Gerente / KAPA — visão da equipe:**
+**Gerente / KAPA:** Leads recebidos, Sem responsável e um número por status (Novo, Contatado, Em atendimento, Ganho,
+Perdido). Tabela **Equipe**: por SDR, leads atribuídos e quantos em cada status, mais a linha "Sem responsável".
+Clique no nome para ver os leads dele.
 
-| Indicador | Fórmula |
-|---|---|
-| Leads recebidos | Todos os leads do período. |
-| Sem responsável | Leads na fila. |
-| Pendentes | Novos + Contatados + Em atendimento. |
-| Novo / Contatado / Em atendimento / Ganho / Perdido | Leads em cada status. |
-| **Conversão** | **Ganhos ÷ (Ganhos + Perdidos)** — só leads já concluídos. Sem concluídos mostra "—". |
-| **1º atendimento** | Média de (primeira mudança de status saindo de **Novo** − chegada do lead), só entre leads que já saíram de Novo. Mede o atendimento **registrado no sistema** (o SDR precisa atualizar o status ao fazer o contato). |
-
-Tabela **Equipe** (ordem alfabética): por SDR, Atribuídos, Novo, Contatado, Em atendimento, Ganho, Perdido,
-Conversão e 1º atendimento; mais a linha "Sem responsável". Clique no nome para ver os leads dele.
+(Conversão e tempo até o 1º atendimento continuam calculáveis no banco — função `lead_kpis` — mas saíram da tela
+para manter o painel simples.)
 
 **SDR — meus números:** Meus novos, Meus contatados, Em atendimento, Ganhos, Perdidos e o tamanho da **fila sem
 responsável**. O SDR não vê os números de outros SDRs (regra no banco, função `lead_kpis`).

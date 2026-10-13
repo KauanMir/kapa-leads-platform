@@ -9,7 +9,6 @@ import { NoteForm } from "@/components/leads/note-form";
 import { PhoneActions } from "@/components/leads/phone-actions";
 import { StatusBadge } from "@/components/leads/status-badge";
 import { StatusSelect } from "@/components/leads/status-select";
-import { SummaryCopy } from "@/components/leads/summary-copy";
 import { Timeline } from "@/components/leads/timeline";
 import { Card, CardHeader } from "@/components/ui/card";
 import { getLeadDetail, getLeadHistory } from "@/lib/admin/leads";
@@ -66,12 +65,13 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
         Voltar para leads
       </Link>
 
+      {/* 1. Nome e 2. telefone em destaque; 3. ações logo abaixo. */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{lead.fullName}</h1>
-          <p className="mt-1 text-muted">
+          <p className="mt-1 text-xl font-semibold tabular-nums">{formatPhone(lead.phone)}</p>
+          <p className="mt-1 text-sm text-muted">
             Recebido em <time dateTime={lead.createdAt}>{formatDateTime(lead.createdAt)}</time>
-            {lead.storeName ? <> · {lead.storeName}</> : null}
             {lead.campaignName ? <> · {lead.campaignName}</> : null}
           </p>
         </div>
@@ -79,16 +79,8 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
       </div>
 
       <Card className="mb-6 p-5">
-        <p className="mb-3 text-sm text-muted">
-          Telefone <span className="font-semibold tabular-nums text-foreground">{formatPhone(lead.phone)}</span>
-        </p>
         {canWork ? (
-          <>
-            <PhoneActions phone={lead.phone} leadName={lead.fullName} storeName={lead.storeName} />
-            <div className="mt-4 border-t border-line pt-4">
-              <SummaryCopy summary={summary} />
-            </div>
-          </>
+          <PhoneActions phone={lead.phone} leadName={lead.fullName} storeName={lead.storeName} summary={summary} />
         ) : (
           <p role="note" className="rounded-lg bg-background px-4 py-3 font-medium">
             {lockedMessage}
@@ -98,28 +90,28 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="flex flex-col gap-6 lg:col-span-3">
+          {/* 4. Dados do formulário */}
+          <Card>
+            <CardHeader title="Dados do formulário" />
+            <div className="p-5">
+              <DetailsList items={formEntries.map((entry) => ({ key: entry.key, label: entry.label, value: entry.value }))} />
+            </div>
+          </Card>
+
           <Card>
             <CardHeader title="Dados pessoais" />
             <div className="p-5">
               <DetailsList
                 items={[
-                  { label: "Nome", value: lead.fullName },
                   { label: "CPF", value: canWork ? <CpfReveal leadId={lead.id} masked={lead.cpfMasked} /> : lead.cpfMasked },
                   { label: "Nascimento", value: `${formatIsoDate(lead.birthDate)} (${age} anos)` },
-                  { label: "Telefone", value: formatPhone(lead.phone) },
                   { label: "E-mail", value: lead.email },
                 ]}
               />
             </div>
           </Card>
 
-          <Card>
-            <CardHeader title="Dados do formulário" description={lead.campaignName ?? undefined} />
-            <div className="p-5">
-              <DetailsList items={formEntries.map((entry) => ({ key: entry.key, label: entry.label, value: entry.value }))} />
-            </div>
-          </Card>
-
+          {/* 5. Campanha e origem (UTMs juntas, só quando existem) */}
           <Card>
             <CardHeader title="Campanha e origem" />
             <div className="p-5">
@@ -127,23 +119,19 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
                 items={[
                   { label: "Loja", value: lead.storeName },
                   { label: "Campanha", value: lead.campaignName },
-                  { label: "Data de cadastro", value: formatDateTime(lead.createdAt) },
-                  { label: "Consentimento", value: `Versão ${lead.consentVersion} · ${formatDateTime(lead.consentAt)}` },
-                  { label: "utm_source", value: t.utmSource },
-                  { label: "utm_medium", value: t.utmMedium },
-                  { label: "utm_campaign", value: t.utmCampaign },
-                  { label: "utm_content", value: t.utmContent },
-                  { label: "utm_term", value: t.utmTerm },
+                  { label: "Recebido em", value: formatDateTime(lead.createdAt) },
+                  { label: "Origem", value: [t.utmSource, t.utmMedium, t.utmCampaign, t.utmContent, t.utmTerm].filter(Boolean).join(" / ") },
                   { label: "Página", value: t.pageUrl },
                   { label: "Referência", value: t.referrer },
+                  { label: "Consentimento", value: `Versão ${lead.consentVersion} · ${formatDateTime(lead.consentAt)}` },
                 ]}
               />
             </div>
           </Card>
         </div>
 
-        {/* No celular, responsável, status e histórico (ações do SDR) vêm antes dos dados. */}
-        <div className="order-first flex flex-col gap-6 lg:order-none lg:col-span-2">
+        {/* 6. Status, responsável e histórico (no celular, depois dos dados). */}
+        <div className="flex flex-col gap-6 lg:col-span-2">
           <Card className="flex flex-col gap-5 p-5">
             <AssigneeCard
               leadId={lead.id}

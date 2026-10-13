@@ -8,7 +8,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { listCampaigns } from "@/lib/admin/config";
 import { filtersToQuery, parseUrlFilters, toLeadFilters, type AssigneeFilter } from "@/lib/admin/filters";
-import { EMPTY_BLOCK, formatConversion, formatDuration, summarizeKpis } from "@/lib/admin/kpis";
+import { EMPTY_BLOCK, summarizeKpis } from "@/lib/admin/kpis";
 import { getLeadKpis, listLeads } from "@/lib/admin/leads";
 import { campaignOptions, storeOptions } from "@/lib/admin/options";
 import { distinctMembers, getStoreTeam } from "@/lib/admin/team";
@@ -24,8 +24,10 @@ const DEFAULT_PERIOD = "30d";
 type KpiCard = { label: string; value: string; href?: string; status?: LeadStatus; hint?: string };
 
 function KpiCards({ cards, label }: { cards: KpiCard[]; label: string }) {
+  // Uma linha no desktop largo (gerente: 7 cards; SDR: 6).
+  const xl = cards.length >= 7 ? "xl:grid-cols-7" : "xl:grid-cols-6";
   return (
-    <section aria-label={label} className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+    <section aria-label={label} className={`mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 ${xl}`}>
       {cards.map((card) => {
         const content = (
           <>
@@ -77,15 +79,12 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
   const leadsHref = (next: { status?: LeadStatus; assignee?: AssigneeFilter }) =>
     `/leads${filtersToQuery({ ...scoped, assignee: next.assignee ?? leadsDefault, status: next.status ?? null }, "tudo", leadsDefault)}`;
 
-  const firstContactHint = "Média até o 1º atendimento registrado";
+  // Painel simples (KAPA Leads não é CRM): recebidos, fila e status.
   let cards: KpiCard[];
   if (manager) {
     cards = [
       { label: "Leads recebidos", value: n(kpis.total), href: leadsHref({ assignee: "todos" }) },
       { label: "Sem responsável", value: n(kpis.unassigned), href: leadsHref({ assignee: "sem" }) },
-      { label: "Pendentes", value: n(kpis.pending), hint: "Novos + contatados + em atendimento" },
-      { label: "Conversão", value: formatConversion(kpis.conversion), hint: "Ganhos ÷ (ganhos + perdidos)" },
-      { label: "1º atendimento", value: formatDuration(kpis.avgFirstContactSeconds), hint: firstContactHint },
       ...LEAD_STATUSES.map((status) => ({ label: STATUS_LABELS[status], value: n(kpis.byStatus[status]), status, href: leadsHref({ status }) })),
     ];
   } else {
@@ -126,7 +125,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
 
       {manager ? (
         <Card className="mt-6">
-          <CardHeader title="Equipe" description="Leads atribuídos a cada SDR no período (ordem alfabética)." />
+          <CardHeader title="Equipe" description="Leads de cada SDR no período." />
           {teamRows.length === 0 ? (
             <p className="px-5 pb-5 text-sm text-muted">Nenhum SDR com leads no período.</p>
           ) : (
@@ -141,8 +140,6 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
                         {STATUS_LABELS[status]}
                       </th>
                     ))}
-                    <th scope="col" className="px-4 py-3 text-right font-semibold">Conversão</th>
-                    <th scope="col" className="px-4 py-3 text-right font-semibold">1º atendimento</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -162,8 +159,6 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
                             {n(block.byStatus[status])}
                           </td>
                         ))}
-                        <td className="px-4 py-3 text-right tabular-nums">{formatConversion(block.conversion)}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatDuration(block.avgFirstContactSeconds)}</td>
                       </tr>
                     );
                   })}
@@ -174,7 +169,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
                       </Link>
                     </th>
                     <td className="px-4 py-3 text-right tabular-nums">{n(kpis.unassigned)}</td>
-                    <td colSpan={LEAD_STATUSES.length + 2} />
+                    <td colSpan={LEAD_STATUSES.length} />
                   </tr>
                 </tbody>
               </table>

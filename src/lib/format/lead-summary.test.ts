@@ -12,12 +12,15 @@ const DUELO_SCHEMA = {
   desiredVehicleValueCents: { label: "Valor aproximado do veículo desejado", format: "money", order: 6 },
 };
 
+// Intl usa espaço não separável depois de "R$".
+const plain = (text: string) => text.replace(/ /g, " ");
+
+const base = { fullName: " João Silva ", phone: "61999999999", campaignName: "Duelo de Aprovações", formSchema: DUELO_SCHEMA };
+
 describe("COPIAR RESUMO", () => {
-  it("usa os rótulos do form_schema e formata dinheiro", () => {
+  it("formato curto, em blocos, com R$ formatado", () => {
     const text = buildLeadSummary({
-      fullName: " João Silva ",
-      phone: "61999999999",
-      campaignName: "Duelo de Aprovações",
+      ...base,
       formData: {
         hasTradeIn: true,
         tradeInVehicle: "Onix",
@@ -26,25 +29,50 @@ describe("COPIAR RESUMO", () => {
         downPaymentCents: 1_500_000,
         desiredVehicleValueCents: 8_000_000,
       },
-      formSchema: DUELO_SCHEMA,
     });
-    // Intl usa espaço não separável depois de "R$".
-    expect(text.replace(/\u00a0/g, " ")).toBe(
+    expect(plain(text)).toBe(
       [
         "Lead: João Silva",
         "Telefone: (61) 99999-9999",
         "Campanha: Duelo de Aprovações",
-        "Possui veículo na troca: Sim",
+        "",
+        "Troca: Sim",
         "Veículo na troca: Onix",
-        "Ano do veículo na troca: 2021",
-        "Possui entrada: Sim",
+        "Ano do veículo: 2021",
+        "",
+        "Entrada: Sim",
         "Valor da entrada: R$ 15.000,00",
-        "Valor aproximado do veículo desejado: R$ 80.000,00",
-      ].join("\n").replace(/ /g, " "),
+        "",
+        "Valor desejado: R$ 80.000,00",
+      ].join("\n"),
     );
   });
 
-  it("funciona sem form_schema (outra campanha) e omite campos vazios", () => {
+  it("sem troca/entrada: só Não, sem detalhes e sem linhas vazias", () => {
+    const text = buildLeadSummary({
+      ...base,
+      formData: { hasTradeIn: false, tradeInVehicle: "sobra", hasDownPayment: false, downPaymentCents: 0 },
+    });
+    expect(text).toBe(["Lead: João Silva", "Telefone: (61) 99999-9999", "Campanha: Duelo de Aprovações", "", "Troca: Não", "", "Entrada: Não"].join("\n"));
+  });
+
+  it("bug do autopreenchimento: data no campo do veículo não vai para o resumo", () => {
+    const text = buildLeadSummary({
+      ...base,
+      formData: { hasTradeIn: true, tradeInVehicle: "01/01/1990", tradeInYear: 2021, hasDownPayment: false },
+    });
+    expect(text).toContain("Troca: Sim\nAno do veículo: 2021");
+    expect(text).not.toContain("01/01/1990");
+    expect(text).not.toContain("Veículo na troca");
+  });
+
+  it("campos faltando: omite a linha", () => {
+    const text = buildLeadSummary({ ...base, formData: { hasTradeIn: true, desiredVehicleValueCents: null } });
+    expect(text.split("\n").slice(-1)[0]).toBe("Troca: Sim");
+    expect(text).not.toMatch(/\n\n$|: —|: $/m);
+  });
+
+  it("outra campanha, sem form_schema: campos extras com nomes legíveis; sem campanha, sem linha", () => {
     const text = buildLeadSummary({
       fullName: "Ana",
       phone: "1134567890",
@@ -52,11 +80,7 @@ describe("COPIAR RESUMO", () => {
       formData: { modeloDesejado: "Corolla", entradaCents: 500_000, observacao: "" },
       formSchema: null,
     });
-    expect(text).toContain("Telefone: (11) 3456-7890");
-    expect(text).toContain("Modelo desejado: Corolla");
-    expect(text).toMatch(/Entrada: R\$\s5\.000,00/);
-    expect(text).not.toContain("Campanha");
-    expect(text).not.toContain("Observacao");
+    expect(plain(text)).toBe(["Lead: Ana", "Telefone: (11) 3456-7890", "", "Entrada: R$ 5.000,00", "Modelo desejado: Corolla"].join("\n"));
   });
 
   it("nunca inclui CPF, nascimento, UTMs, ids ou URLs — nem se vierem no form_data", () => {
@@ -77,8 +101,8 @@ describe("COPIAR RESUMO", () => {
       },
       formSchema: {},
     });
-    expect(text).not.toContain(cpf);
-    expect(text).not.toContain(formatCpf(cpf));
+    expect(text.includes(cpf)).toBe(false);
+    expect(text.includes(formatCpf(cpf))).toBe(false);
     expect(text).not.toMatch(/1990|meta|https?:|123/);
     expect(text).toContain("Cor: Prata");
   });

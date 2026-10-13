@@ -94,6 +94,9 @@ docs/                  documentação (ex.: guia de integração das LPs)
 - A loja é sempre descoberta pelo backend a partir da campanha (`campaignKey`); `store_id` enviado por LP nunca é aceito.
 - RLS ligado em todas as tabelas: uma loja jamais acessa dados de outra.
 
+> **Escopo:** o KAPA Leads é a captura e visualização simples dos leads das LPs (receber, listar, abrir, ligar/WhatsApp,
+> copiar resumo, status e observações). **Não é CRM** — o CRM é o KAPA CRM. Sem Meta, WhatsApp oficial ou automações.
+
 ## Fases
 
 1. **Fundação** — projeto Next.js, TypeScript, Tailwind, ESLint, estrutura. ✅
@@ -104,7 +107,7 @@ docs/                  documentação (ex.: guia de integração das LPs)
 6. **Integração da LP Vitrine — Duelo de Aprovações** — LP envia direto do navegador, `form_schema` da campanha, teste local ponta a ponta (ver [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md#10-campanha-integrada-duelo-de-aprovações)). ✅
 7. **Preparação de produção** — build trava com env incompleta, cookies `Secure`/`HttpOnly`, headers de segurança, origens só `https`, checklist de go-live em [`docs/deploy-producao.md`](docs/deploy-producao.md). Hospedagem: Vercel (`gru1`; Hobby no desenvolvimento, Pro antes da campanha), plataforma em `https://leads.assessoriakapa.com.br`.
 8. **Preparação para operação real** — Supabase DEV separado (local, testes e previews), travas DEV x PRODUÇÃO pelo ref do projeto, onboarding de usuários de loja e checklist de go-live ([`docs/ambientes.md`](docs/ambientes.md), [`docs/operacao-lojas.md`](docs/operacao-lojas.md), [`docs/deploy-producao.md §7`](docs/deploy-producao.md#7-checklist-de-entrada-em-operação-go-live)). ✅
-9. **Operação SDR** — responsável pelo lead (assumir/atribuir/reatribuir com histórico), filas "Meus leads"/"Sem responsável", COPIAR RESUMO para o vendedor, CPF revelado sob demanda com auditoria, KPIs por SDR ([`docs/operacao-lojas.md`](docs/operacao-lojas.md)). Migration `20261014120000` testada no DEV; **produção aguardando autorização**.
+9. **Operação SDR** — responsável pelo lead (assumir/atribuir/reatribuir com histórico), filas "Meus leads"/"Sem responsável", COPIAR RESUMO para o vendedor, CPF revelado sob demanda com auditoria, KPIs por SDR ([`docs/operacao-lojas.md`](docs/operacao-lojas.md)). Migration `20261014120000` aplicada em produção (13/10/2026). ✅
 
 ## Tarefas futuras (fora do MVP)
 
