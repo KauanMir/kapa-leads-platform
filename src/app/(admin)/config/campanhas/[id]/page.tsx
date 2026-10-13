@@ -1,7 +1,10 @@
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+
 import { NotFoundPanel } from "@/components/admin/not-found-panel";
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { CampaignForm } from "@/components/config/campaign-form";
 import { RotateKeyForm } from "@/components/config/rotate-key-form";
 import { Card, CardHeader, Notice, PageHeader } from "@/components/ui/card";
@@ -12,10 +15,10 @@ import { getSuperAdminSession } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "Campanha · KAPA Leads" };
 
-export default async function EditCampaignPage(props: PageProps<"/config/campanhas/[id]">) {
+async function EditCampaignContent(props: PageProps<"/config/campanhas/[id]">) {
+  const session = await getSuperAdminSession();
   const { id } = await props.params;
   const { criada } = await props.searchParams;
-  const session = await getSuperAdminSession();
   if (!session) return <NotFoundPanel />;
   const { db } = session;
 
@@ -71,5 +74,13 @@ export default async function EditCampaignPage(props: PageProps<"/config/campanh
         />
       </Card>
     </>
+  );
+}
+
+export default function EditCampaignPage(props: PageProps<"/config/campanhas/[id]">) {
+  return (
+    <Suspense fallback={<PageSkeleton variant="form" />}>
+      <EditCampaignContent {...props} />
+    </Suspense>
   );
 }

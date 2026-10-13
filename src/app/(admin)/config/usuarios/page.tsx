@@ -1,7 +1,9 @@
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, EmptyState, Notice, PageHeader } from "@/components/ui/card";
 import { listUsers } from "@/lib/admin/config";
@@ -11,9 +13,9 @@ import { NotFoundPanel } from "@/components/admin/not-found-panel";
 
 export const metadata: Metadata = { title: "Usuários · KAPA Leads" };
 
-export default async function UsersPage(props: PageProps<"/config/usuarios">) {
-  const { criado, vinculo } = await props.searchParams;
+async function UsersContent(props: PageProps<"/config/usuarios">) {
   const session = await getSuperAdminSession();
+  const { criado, vinculo } = await props.searchParams;
   if (!session) return <NotFoundPanel />;
   const { db } = session;
   const users = await listUsers(db);
@@ -71,5 +73,13 @@ export default async function UsersPage(props: PageProps<"/config/usuarios">) {
         )}
       </Card>
     </>
+  );
+}
+
+export default function UsersPage(props: PageProps<"/config/usuarios">) {
+  return (
+    <Suspense fallback={<PageSkeleton variant="list" />}>
+      <UsersContent {...props} />
+    </Suspense>
   );
 }

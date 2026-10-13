@@ -1,9 +1,10 @@
 import { ArrowLeft, ArrowLeftRight, CalendarClock, CarFront, ClipboardList, History, Lock, Megaphone, Store, UserRound, Wallet } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { NotFoundPanel } from "@/components/admin/not-found-panel";
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { AssigneeCard } from "@/components/leads/assignee-card";
 import { CpfReveal } from "@/components/leads/cpf-reveal";
 import { DetailsList } from "@/components/leads/details-list";
@@ -37,9 +38,9 @@ function Chip({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   );
 }
 
-export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
-  const { id } = await props.params;
+async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
   const { db, context } = await getAdminSession();
+  const { id } = await props.params;
 
   // RLS: lead de outra loja simplesmente não é encontrado.
   const lead = await getLeadDetail(db, id);
@@ -217,5 +218,13 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
         </div>
       </div>
     </>
+  );
+}
+
+export default function LeadDetailPage(props: PageProps<"/leads/[id]">) {
+  return (
+    <Suspense fallback={<PageSkeleton variant="detail" />}>
+      <LeadDetailContent {...props} />
+    </Suspense>
   );
 }

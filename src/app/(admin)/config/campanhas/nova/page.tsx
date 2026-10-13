@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { CampaignForm } from "@/components/config/campaign-form";
 import { Card, PageHeader } from "@/components/ui/card";
 import { createCampaignAction } from "@/lib/actions/config";
@@ -9,7 +11,7 @@ import { NotFoundPanel } from "@/components/admin/not-found-panel";
 
 export const metadata: Metadata = { title: "Nova campanha · KAPA Leads" };
 
-export default async function NewCampaignPage() {
+async function NewCampaignContent() {
   const session = await getSuperAdminSession();
   if (!session) return <NotFoundPanel />;
   const { db } = session;
@@ -27,5 +29,13 @@ export default async function NewCampaignPage() {
         />
       </Card>
     </>
+  );
+}
+
+export default function NewCampaignPage() {
+  return (
+    <Suspense fallback={<PageSkeleton variant="form" />}>
+      <NewCampaignContent />
+    </Suspense>
   );
 }

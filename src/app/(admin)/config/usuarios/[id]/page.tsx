@@ -1,7 +1,10 @@
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+
 import { NotFoundPanel } from "@/components/admin/not-found-panel";
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { MembershipForm } from "@/components/config/user-forms";
 import { ActionButton } from "@/components/ui/action-button";
 import { Card, CardHeader, EmptyState, PageHeader } from "@/components/ui/card";
@@ -13,9 +16,9 @@ import { formatDay } from "@/lib/format/datetime";
 
 export const metadata: Metadata = { title: "Usuário · KAPA Leads" };
 
-export default async function UserDetailPage(props: PageProps<"/config/usuarios/[id]">) {
-  const { id } = await props.params;
+async function UserDetailContent(props: PageProps<"/config/usuarios/[id]">) {
   const session = await getSuperAdminSession();
+  const { id } = await props.params;
   if (!session) return <NotFoundPanel />;
   const { db, context } = session;
 
@@ -86,5 +89,13 @@ export default async function UserDetailPage(props: PageProps<"/config/usuarios/
         </div>
       </Card>
     </>
+  );
+}
+
+export default function UserDetailPage(props: PageProps<"/config/usuarios/[id]">) {
+  return (
+    <Suspense fallback={<PageSkeleton variant="form" />}>
+      <UserDetailContent {...props} />
+    </Suspense>
   );
 }

@@ -1,7 +1,9 @@
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, EmptyState, PageHeader } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -11,7 +13,7 @@ import { NotFoundPanel } from "@/components/admin/not-found-panel";
 
 export const metadata: Metadata = { title: "Campanhas · KAPA Leads" };
 
-export default async function CampaignsPage() {
+async function CampaignsContent() {
   const session = await getSuperAdminSession();
   if (!session) return <NotFoundPanel />;
   const { db } = session;
@@ -62,5 +64,13 @@ export default async function CampaignsPage() {
         )}
       </Card>
     </>
+  );
+}
+
+export default function CampaignsPage() {
+  return (
+    <Suspense fallback={<PageSkeleton variant="list" />}>
+      <CampaignsContent />
+    </Suspense>
   );
 }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { NameForm, PasswordForm } from "@/components/profile/profile-forms";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { ROLE_LABELS } from "@/lib/auth/access";
@@ -7,7 +9,7 @@ import { getAdminSession } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "Meu perfil · KAPA Leads" };
 
-export default async function ProfilePage() {
+async function ProfileContent() {
   const { context } = await getAdminSession();
 
   return (
@@ -48,5 +50,13 @@ export default async function ProfilePage() {
         </Card>
       </div>
     </>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<PageSkeleton variant="form" />}>
+      <ProfileContent />
+    </Suspense>
   );
 }

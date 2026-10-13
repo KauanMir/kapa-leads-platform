@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { AssigneeTabs } from "@/components/leads/assignee-tabs";
 import { LeadFilters } from "@/components/leads/lead-filters";
 import { LeadsTable } from "@/components/leads/leads-table";
@@ -17,9 +19,9 @@ export const metadata: Metadata = { title: "Leads · KAPA Leads" };
 
 const DEFAULT_PERIOD = "tudo";
 
-export default async function LeadsPage(props: PageProps<"/leads">) {
-  const searchParams = await props.searchParams;
+async function LeadsContent(props: PageProps<"/leads">) {
   const { db, context } = await getAdminSession();
+  const searchParams = await props.searchParams;
 
   // SDR abre direto em "Meus leads"; gerente/KAPA em "Todos".
   const manager = isStoreManager(context);
@@ -79,5 +81,13 @@ export default async function LeadsPage(props: PageProps<"/leads">) {
         ) : null}
       </Card>
     </>
+  );
+}
+
+export default function LeadsPage(props: PageProps<"/leads">) {
+  return (
+    <Suspense fallback={<PageSkeleton variant="list" />}>
+      <LeadsContent {...props} />
+    </Suspense>
   );
 }

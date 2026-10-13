@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { StoreForm } from "@/components/config/store-form";
 import { ActionButton } from "@/components/ui/action-button";
 import { Card, CardHeader, EmptyState, PageHeader } from "@/components/ui/card";
@@ -11,7 +13,7 @@ import { formatDay } from "@/lib/format/datetime";
 
 export const metadata: Metadata = { title: "Lojas · KAPA Leads" };
 
-export default async function StoresPage() {
+async function StoresContent() {
   const session = await getSuperAdminSession();
   if (!session) return <NotFoundPanel />;
   const { db } = session;
@@ -69,5 +71,13 @@ export default async function StoresPage() {
         )}
       </Card>
     </>
+  );
+}
+
+export default function StoresPage() {
+  return (
+    <Suspense fallback={<PageSkeleton variant="list" />}>
+      <StoresContent />
+    </Suspense>
   );
 }

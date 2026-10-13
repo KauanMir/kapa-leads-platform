@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+
 import { NotFoundPanel } from "@/components/admin/not-found-panel";
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { Card, CardHeader, EmptyState, PageHeader } from "@/components/ui/card";
 import { listCampaigns, listStoreMembers } from "@/lib/admin/config";
 import { ROLE_LABELS } from "@/lib/auth/access";
@@ -8,7 +11,7 @@ import { getAdminSession } from "@/lib/auth/session";
 export const metadata: Metadata = { title: "Minha loja · KAPA Leads" };
 
 /** STORE_ADMIN: campanhas e membros das lojas que administra (somente leitura). */
-export default async function MyStorePage() {
+async function MyStoreContent() {
   const { db, context } = await getAdminSession();
   const adminStores = context.stores.filter((store) => store.role === "STORE_ADMIN");
   if (adminStores.length === 0) return <NotFoundPanel />;
@@ -72,5 +75,13 @@ export default async function MyStorePage() {
         })}
       </div>
     </>
+  );
+}
+
+export default function MyStorePage() {
+  return (
+    <Suspense fallback={<PageSkeleton variant="list" />}>
+      <MyStoreContent />
+    </Suspense>
   );
 }

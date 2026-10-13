@@ -1,7 +1,9 @@
 import { ArrowRight, ChevronRight, Inbox, UserRoundX, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
+import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { LeadFilters } from "@/components/leads/lead-filters";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { STATUS_DOTS } from "@/components/leads/status-badge";
@@ -99,9 +101,9 @@ function QueueStat({ label, value, href, hint }: { label: string; value: number;
   );
 }
 
-export default async function DashboardPage(props: PageProps<"/dashboard">) {
-  const searchParams = await props.searchParams;
+async function DashboardContent(props: PageProps<"/dashboard">) {
   const { db, context } = await getAdminSession();
+  const searchParams = await props.searchParams;
   const manager = isStoreManager(context);
 
   const filters = parseUrlFilters(searchParams, DEFAULT_PERIOD);
@@ -295,5 +297,13 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
         />
       </Card>
     </>
+  );
+}
+
+export default function DashboardPage(props: PageProps<"/dashboard">) {
+  return (
+    <Suspense fallback={<PageSkeleton variant="dashboard" />}>
+      <DashboardContent {...props} />
+    </Suspense>
   );
 }
