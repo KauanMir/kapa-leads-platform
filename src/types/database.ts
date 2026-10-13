@@ -153,6 +153,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          assigned_to: string | null
           birth_date: string
           campaign_id: string
           client_submission_id: string
@@ -178,6 +179,7 @@ export type Database = {
           utm_term: string | null
         }
         Insert: {
+          assigned_to?: string | null
           birth_date: string
           campaign_id: string
           client_submission_id: string
@@ -203,6 +205,7 @@ export type Database = {
           utm_term?: string | null
         }
         Update: {
+          assigned_to?: string | null
           birth_date?: string
           campaign_id?: string
           client_submission_id?: string
@@ -228,6 +231,13 @@ export type Database = {
           utm_term?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "leads_assignee_member_fkey"
+            columns: ["store_id", "assigned_to"]
+            isOneToOne: false
+            referencedRelation: "store_members"
+            referencedColumns: ["store_id", "user_id"]
+          },
           {
             foreignKeyName: "leads_campaign_store_fkey"
             columns: ["campaign_id", "store_id"]
@@ -341,7 +351,36 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      assign_lead: {
+        Args: { p_assignee_id: string; p_lead_id: string }
+        Returns: undefined
+      }
+      lead_kpis: {
+        Args: {
+          p_campaign_id?: string
+          p_from?: string
+          p_store_id?: string
+          p_to?: string
+        }
+        Returns: {
+          assigned_to: string
+          first_contact_leads: number
+          first_contact_seconds: number
+          leads: number
+          status: Database["public"]["Enums"]["lead_status"]
+        }[]
+      }
+      reveal_lead_cpf: { Args: { p_lead_id: string }; Returns: string }
+      store_team: {
+        Args: never
+        Returns: {
+          full_name: string
+          is_active: boolean
+          role: Database["public"]["Enums"]["store_member_role"]
+          store_id: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       lead_event_type:

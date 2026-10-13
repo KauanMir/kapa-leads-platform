@@ -7,8 +7,27 @@ import type { LeadListItem } from "@/lib/admin/leads";
 import { formatDateTime } from "@/lib/format/datetime";
 import { formatPhone } from "@/lib/format/phone";
 
+/** Nomes da equipe (id → nome) e o usuário logado, para a coluna Responsável. */
+export type AssigneeLabels = { names: Record<string, string>; currentUserId: string };
+
+function assigneeLabel(id: string | null, labels: AssigneeLabels): string {
+  if (!id) return "Sem responsável";
+  if (id === labels.currentUserId) return "Você";
+  return labels.names[id] ?? "Membro da equipe";
+}
+
 /** Lista de leads: tabela no desktop, cards no mobile. Sem CPF. */
-export function LeadsTable({ rows, showStore, emptyMessage = "Nenhum lead encontrado." }: { rows: LeadListItem[]; showStore: boolean; emptyMessage?: string }) {
+export function LeadsTable({
+  rows,
+  showStore,
+  assignees,
+  emptyMessage = "Nenhum lead encontrado.",
+}: {
+  rows: LeadListItem[];
+  showStore: boolean;
+  assignees: AssigneeLabels;
+  emptyMessage?: string;
+}) {
   if (rows.length === 0) return <EmptyState title={emptyMessage}>Ajuste os filtros ou aguarde novos leads.</EmptyState>;
 
   return (
@@ -23,6 +42,7 @@ export function LeadsTable({ rows, showStore, emptyMessage = "Nenhum lead encont
               <th scope="col" className="px-4 py-3 font-semibold">Campanha</th>
               <th scope="col" className="px-4 py-3 font-semibold">Origem</th>
               <th scope="col" className="px-4 py-3 font-semibold">Status</th>
+              <th scope="col" className="px-4 py-3 font-semibold">Responsável</th>
               <th scope="col" className="px-4 py-3 font-semibold">Data/hora</th>
             </tr>
           </thead>
@@ -41,6 +61,7 @@ export function LeadsTable({ rows, showStore, emptyMessage = "Nenhum lead encont
                 <td className="px-4 py-3">
                   <StatusBadge status={lead.status} />
                 </td>
+                <td className={`px-4 py-3 ${lead.assignedTo ? "" : "text-muted"}`}>{assigneeLabel(lead.assignedTo, assignees)}</td>
                 <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted">{formatDateTime(lead.createdAt)}</td>
               </tr>
             ))}
@@ -62,6 +83,7 @@ export function LeadsTable({ rows, showStore, emptyMessage = "Nenhum lead encont
                   {[showStore ? lead.storeName : null, lead.campaignName, lead.utmSource].filter(Boolean).join(" · ")}
                 </p>
                 <p className="mt-0.5 text-sm tabular-nums text-muted">{formatDateTime(lead.createdAt)}</p>
+                <p className="mt-0.5 text-sm text-muted">{lead.assignedTo ? `Responsável: ${assigneeLabel(lead.assignedTo, assignees)}` : "Sem responsável"}</p>
               </div>
               <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-muted" />
             </Link>

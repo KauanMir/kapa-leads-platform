@@ -4,7 +4,7 @@ import { refresh } from "next/cache";
 import { z } from "zod";
 
 import type { ActionResult, FormState } from "@/lib/actions/types";
-import { NOTE_MAX_LENGTH, addLeadNote, updateLeadStatus } from "@/lib/admin/leads";
+import { NOTE_MAX_LENGTH, addLeadNote, assignLead, revealLeadCpf, updateLeadStatus, type AssignResult } from "@/lib/admin/leads";
 import { getAdminSession } from "@/lib/auth/session";
 import { isLeadStatus } from "@/lib/format/status";
 
@@ -40,4 +40,51 @@ export async function addNote(id: string, _prev: FormState, formData: FormData):
 
   refresh();
   return { ok: true, message: "Observação adicionada." };
+}
+
+const ASSIGN_MESSAGES: Record<Exclude<AssignResult, { ok: true }>["reason"], string> = {
+  not_found: "Lead não encontrado ou sem permissão.",
+  forbidden: "Sem permissão para atribuir este lead.",
+  taken: "Este lead já tem outro responsável. Atualize a página.",
+  invalid: "Escolha um membro ativo desta loja.",
+};
+
+/**
+ * Atribui/reatribui (gerente/KAPA) ou devolve para a fila (assigneeId vazio).
+ * As regras ficam na função assign_lead do banco (evento ASSIGNED).
+ */
+export async function assignLeadAction(id: string, assigneeId: string): Promise<ActionResult> {
+  const target = assigneeId === "" ? null : assigneeId;
+  if (!leadId.safeParse(id).success || (target !== null && !leadId.safeParse(target).success)) {
+    return { ok: false, error: "Dados inválidos." };
+  }
+  const { db } = await getAdminSession();
+  const result = await assignLead(db, id, target);
+  if (!result.ok) return { ok: false, error: ASSIGN_MESSAGES[result.reason] };
+  refresh();
+  return { ok: true };
+}
+
+/** SDR assume para si um lead sem responsável. */
+export async function claimLeadAction(id: string): Promise<ActionResult> {
+  if (!leadId.safeParse(id).success) return { ok: false, error: "Dados inválidos." };
+  const { db, context } = await getAdminSession();
+  const result = await assignLead(db, id, context.userId);
+  if (!result.ok) return { ok: false, error: ASSIGN_MESSAGES[result.reason] };
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * CPF completo, só sob demanda. O banco confere o acesso e grava
+ * CPF_REVEALED. O valor vai apenas na resposta desta ação — nunca em log,
+ * URL ou HTML inicial.
+ */
+export async function revealCpfAction(id: string): Promise<ActionResult<string>> {
+  if (!leadId.safeParse(id).success) return { ok: false, error: "Dados inválidos." };
+  const { db } = await getAdminSession();
+  const cpf = await revealLeadCpf(db, id);
+  if (!cpf) return { ok: false, error: "Sem permissão para ver este CPF." };
+  refresh();
+  return { ok: true, data: cpf };
 }

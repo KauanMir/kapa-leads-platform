@@ -23,6 +23,7 @@ const admin = createClient<Database>(env.url, env.secretKey, clientOptions);
 
 let leadA: { id: string; cpf: string };
 let leadB: string;
+let leadOther: string; // da Loja Alfa, atribuído a OUTRO SDR
 const cookies: Record<"storeUser" | "superAdmin" | "inactive", string> = { storeUser: "", superAdmin: "", inactive: "" };
 
 /** Login com o mesmo cliente SSR do app; devolve o header Cookie resultante. */
@@ -106,21 +107,25 @@ beforeAll(async () => {
   );
   leadA = await insertLead(campaigns.find((c) => c.slug === "alfa")!.id, "Lead Visivel Alfa");
   leadB = (await insertLead(campaigns.find((c) => c.slug === "beta")!.id, "Lead Secreto Beta")).id;
+  leadOther = (await insertLead(campaigns.find((c) => c.slug === "alfa")!.id, "Lead Do Colega Alfa")).id;
 
   const storeUser = await createTestUser(admin, `${RUN}-user@${TEST_EMAIL_DOMAIN}`, "E2E Vendedor");
   const superAdmin = await createTestUser(admin, `${RUN}-super@${TEST_EMAIL_DOMAIN}`, "E2E Super");
   const inactive = await createTestUser(admin, `${RUN}-inactive@${TEST_EMAIL_DOMAIN}`, "E2E Inativo");
+  const colleague = await createTestUser(admin, `${RUN}-colleague@${TEST_EMAIL_DOMAIN}`, "E2E Colega SDR");
   unwrap(
     await admin
       .from("store_members")
       .insert([
         { store_id: storeA, user_id: storeUser.id, role: "STORE_USER", is_active: true },
         { store_id: storeA, user_id: inactive.id, role: "STORE_USER", is_active: true },
+        { store_id: storeA, user_id: colleague.id, role: "STORE_USER", is_active: true },
       ])
       .select("user_id"),
     "vínculos",
   );
   unwrap(await admin.from("profiles").update({ is_super_admin: true }).eq("id", superAdmin.id).select("id"), "super");
+  unwrap(await admin.from("leads").update({ assigned_to: colleague.id }).eq("id", leadOther).select("id"), "atribuição");
 
   cookies.storeUser = await sessionCookie(storeUser.email, storeUser.password);
   cookies.superAdmin = await sessionCookie(superAdmin.email, superAdmin.password);
@@ -154,30 +159,61 @@ describe("sem login", () => {
   });
 });
 
-describe("STORE_USER", () => {
-  it("dashboard e lista mostram somente a própria loja, sem CPF", async () => {
+describe("STORE_USER (SDR)", () => {
+  it("dashboard do SDR: só os próprios números e a fila, sem a equipe", async () => {
     const dashboard = await get("/dashboard", cookies.storeUser);
     expect(dashboard.status).toBe(200);
-    expect(dashboard.html).toContain("E2E Loja Alfa");
-    expect(dashboard.html).toContain("Lead Visivel Alfa");
+    expect(dashboard.html).toContain("Meus novos");
+    expect(dashboard.html).toContain("Fila sem responsável");
+    expect(dashboard.html).not.toContain("Leads recebidos");
+    expect(dashboard.html).not.toContain("E2E Colega SDR");
+    expect(dashboard.html).not.toContain("Lead Do Colega Alfa");
     expect(dashboard.html).not.toContain("Lead Secreto Beta");
+  });
 
-    const leads = await get("/leads", cookies.storeUser);
-    expect(leads.html).toContain("Lead Visivel Alfa");
-    expect(leads.html).not.toContain("Lead Secreto Beta");
-    expect(leads.html).not.toContain(leadA.cpf);
+  it("/leads abre em Meus leads; a fila e Todos mostram só a própria loja, sem CPF", async () => {
+    const mine = await get("/leads", cookies.storeUser);
+    expect(mine.html).toMatch(/aria-current="page"[^>]*>Meus leads</);
+    expect(mine.html).not.toContain("Lead Visivel Alfa");
+
+    const queue = await get("/leads?resp=sem", cookies.storeUser);
+    expect(queue.html).toContain("Lead Visivel Alfa");
+    expect(queue.html).not.toContain("Lead Do Colega Alfa");
+
+    const all = await get("/leads?resp=todos", cookies.storeUser);
+    expect(all.html).toContain("Lead Visivel Alfa");
+    expect(all.html).toContain("Lead Do Colega Alfa");
+    expect(all.html).toContain("Responsável");
+    expect(all.html).not.toContain("Lead Secreto Beta");
+    expect(all.html.includes(leadA.cpf)).toBe(false);
   });
 
   it("filtro por loja na URL não amplia o acesso", async () => {
-    const res = await get(`/leads?q=Secreto`, cookies.storeUser);
+    const res = await get(`/leads?q=Secreto&resp=todos`, cookies.storeUser);
     expect(res.html).not.toContain("Lead Secreto Beta");
+  });
+
+  it("detalhe: ASSUMIR LEAD, REVELAR CPF e COPIAR RESUMO — CPF completo nunca no HTML", async () => {
+    const res = await get(`/leads/${leadA.id}`, cookies.storeUser);
+    expect(res.html).toContain("ASSUMIR LEAD");
+    expect(res.html).toContain("REVELAR CPF");
+    expect(res.html).toContain("COPIAR RESUMO");
+    expect(res.html).toContain("Lead: Lead Visivel Alfa");
+    expect(res.html.includes(leadA.cpf)).toBe(false);
+    expect(res.html.includes(`${leadA.cpf.slice(0, 3)}.${leadA.cpf.slice(3, 6)}.${leadA.cpf.slice(6, 9)}-${leadA.cpf.slice(9)}`)).toBe(false);
+  });
+
+  it("lead de outro SDR: mostra o responsável, sem ASSUMIR", async () => {
+    const res = await get(`/leads/${leadOther}`, cookies.storeUser);
+    expect(res.html).toContain("E2E Colega SDR");
+    expect(res.html).not.toContain("ASSUMIR LEAD");
   });
 
   it("detalhe mostra CPF mascarado e ações de contato", async () => {
     const res = await get(`/leads/${leadA.id}`, cookies.storeUser);
     expect(res.html).toContain("Lead Visivel Alfa");
     expect(res.html).toContain(`***.${leadA.cpf.slice(3, 6)}.${leadA.cpf.slice(6, 9)}-**`);
-    expect(res.html).not.toContain(leadA.cpf);
+    expect(res.html.includes(leadA.cpf)).toBe(false);
     expect(res.html).toContain("tel:+5511987651234");
     expect(res.html).toContain("https://wa.me/5511987651234");
     // Controle: página permitida não renderiza o "não encontrado".
@@ -198,6 +234,18 @@ describe("STORE_USER", () => {
 });
 
 describe("SUPER_ADMIN", () => {
+  it("dashboard com visão da equipe e seletor de responsável no lead", async () => {
+    const dashboard = await get("/dashboard", cookies.superAdmin);
+    expect(dashboard.html).toContain("Leads recebidos");
+    expect(dashboard.html).toContain("Equipe");
+    expect(dashboard.html).toContain("E2E Colega SDR");
+
+    const detail = await get(`/leads/${leadA.id}`, cookies.superAdmin);
+    expect(detail.html).toContain('aria-label="Responsável pelo lead"');
+    expect(detail.html).toContain("E2E Vendedor");
+    expect(detail.html).not.toContain("ASSUMIR LEAD");
+  });
+
   it("vê todas as lojas e leads", async () => {
     const stores = await get("/config/lojas", cookies.superAdmin);
     expect(renderedNotFound(stores.html)).toBe(false);

@@ -7,7 +7,7 @@ import { useState, type FormEvent } from "react";
 
 import { Button, buttonClasses } from "@/components/ui/button";
 import { FieldError, Input, Label, Select } from "@/components/ui/field";
-import { filtersToQuery, type UrlFilters } from "@/lib/admin/filters";
+import { filtersToQuery, isAssigneeFilter, type AssigneeFilter, type UrlFilters } from "@/lib/admin/filters";
 import { looksLikeCpf } from "@/lib/admin/search";
 import { PERIOD_LABELS, PERIODS, type Period } from "@/lib/format/period";
 import { LEAD_STATUSES, STATUS_LABELS, isLeadStatus } from "@/lib/format/status";
@@ -24,6 +24,7 @@ export function LeadFilters({
   defaultPeriod,
   campaigns,
   stores,
+  assignee,
   showSearch = true,
   showStatus = true,
 }: {
@@ -32,6 +33,8 @@ export function LeadFilters({
   defaultPeriod: Period;
   campaigns: Option[];
   stores: Option[] | null;
+  /** Filtro de responsável: `members` só para gerente/KAPA (null = SDR, escolhe pelas abas). */
+  assignee?: { defaultValue: AssigneeFilter; members: Option[] | null };
   showSearch?: boolean;
   showStatus?: boolean;
 }) {
@@ -39,7 +42,9 @@ export function LeadFilters({
   const [period, setPeriod] = useState<Period>(current.period);
   const [searchError, setSearchError] = useState<string | null>(null);
   // No celular, só a busca fica visível; os demais filtros abrem sob demanda.
-  const hasActiveFilters = Boolean(current.status || current.campaignId || current.storeId || current.period !== defaultPeriod);
+  const hasActiveFilters = Boolean(
+    current.status || current.campaignId || current.storeId || current.period !== defaultPeriod || (assignee?.members && current.assignee !== assignee.defaultValue),
+  );
   const [showMore, setShowMore] = useState(hasActiveFilters || !showSearch);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -53,18 +58,21 @@ export function LeadFilters({
     setSearchError(null);
 
     const status = String(data.get("status") ?? "");
+    const resp = String(data.get("resp") ?? "");
     const query = filtersToQuery(
       {
         q,
         status: isLeadStatus(status) ? status : null,
         campaignId: String(data.get("campanha") ?? "") || null,
         storeId: String(data.get("loja") ?? "") || null,
+        assignee: assignee && isAssigneeFilter(resp) ? resp : undefined,
         period,
         from: String(data.get("de") ?? ""),
         to: String(data.get("ate") ?? ""),
         page: 1,
       },
       defaultPeriod,
+      assignee?.defaultValue,
     );
     router.push(`${basePath}${query}`);
   }
@@ -105,6 +113,24 @@ export function LeadFilters({
               ))}
             </Select>
           </div>
+        ) : null}
+
+        {assignee?.members ? (
+          <div>
+            <Label htmlFor="filtro-resp">Responsável</Label>
+            <Select id="filtro-resp" name="resp" defaultValue={current.assignee}>
+              <option value="todos">Todos</option>
+              <option value="sem">Sem responsável</option>
+              <option value="meus">Meus leads</option>
+              {assignee.members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : assignee ? (
+          <input type="hidden" name="resp" value={current.assignee} />
         ) : null}
 
         <div>

@@ -120,6 +120,16 @@ export async function loadAdminAccess(db: SupabaseClient<Database>, userId: stri
 
 export const ROLE_LABELS: Record<AdminRole, string> = {
   SUPER_ADMIN: "Super admin (KAPA)",
-  STORE_ADMIN: "Administrador da loja",
-  STORE_USER: "Usuário da loja",
+  // Operação: STORE_ADMIN = gerente/supervisor; STORE_USER = SDR (papel técnico inalterado no banco).
+  STORE_ADMIN: "Gerente (admin da loja)",
+  STORE_USER: "SDR",
 };
+
+/**
+ * Gerente (STORE_ADMIN em alguma loja) ou KAPA: vê a visão da equipe e
+ * distribui leads. Os demais são SDRs (STORE_USER). Só decide a TELA — as
+ * permissões reais estão no banco (RLS e funções).
+ */
+export function isStoreManager(context: Pick<AdminContext, "isSuperAdmin" | "stores">): boolean {
+  return context.isSuperAdmin || context.stores.some((store) => store.role === "STORE_ADMIN");
+}

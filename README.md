@@ -103,12 +103,11 @@ docs/                  documentação (ex.: guia de integração das LPs)
 5. **Admin MVP** — dashboard, leads, detalhe com status/observações/linha do tempo, contato rápido, configurações KAPA. ✅
 6. **Integração da LP Vitrine — Duelo de Aprovações** — LP envia direto do navegador, `form_schema` da campanha, teste local ponta a ponta (ver [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md#10-campanha-integrada-duelo-de-aprovações)). ✅
 7. **Preparação de produção** — build trava com env incompleta, cookies `Secure`/`HttpOnly`, headers de segurança, origens só `https`, checklist de go-live em [`docs/deploy-producao.md`](docs/deploy-producao.md). Hospedagem: Vercel (`gru1`; Hobby no desenvolvimento, Pro antes da campanha), plataforma em `https://leads.assessoriakapa.com.br`.
-8. **Preparação para operação real** — Supabase DEV separado (local, testes e previews), travas DEV x PRODUÇÃO pelo ref do projeto, onboarding de usuários de loja e checklist de go-live ([`docs/ambientes.md`](docs/ambientes.md), [`docs/operacao-lojas.md`](docs/operacao-lojas.md), [`docs/deploy-producao.md §7`](docs/deploy-producao.md#7-checklist-de-entrada-em-operação-go-live)).
+8. **Preparação para operação real** — Supabase DEV separado (local, testes e previews), travas DEV x PRODUÇÃO pelo ref do projeto, onboarding de usuários de loja e checklist de go-live ([`docs/ambientes.md`](docs/ambientes.md), [`docs/operacao-lojas.md`](docs/operacao-lojas.md), [`docs/deploy-producao.md §7`](docs/deploy-producao.md#7-checklist-de-entrada-em-operação-go-live)). ✅
+9. **Operação SDR** — responsável pelo lead (assumir/atribuir/reatribuir com histórico), filas "Meus leads"/"Sem responsável", COPIAR RESUMO para o vendedor, CPF revelado sob demanda com auditoria, KPIs por SDR ([`docs/operacao-lojas.md`](docs/operacao-lojas.md)). Migration `20261014120000` testada no DEV; **produção aguardando autorização**.
 
 ## Tarefas futuras (fora do MVP)
 
 - Backup automático do banco (`pg_dump` agendado), já que o Supabase Free não oferece backups gerenciados.
 - SMTP próprio para convites e redefinição de senha ("esqueci a senha").
-- Revelação auditada do CPF completo (`CPF_REVEALED`).
-- Nomes dos colegas na linha do tempo para STORE_USER (hoje aparece "Membro da equipe"; exige ajuste de RLS/função).
 - Anti-abuso mais forte na API pública (ex.: Cloudflare WAF/Turnstile, rate limit distribuído com Redis/KV, ou assinatura server-side para LPs com backend). O rate limit atual é em memória, por instância (padrão 30/60 s por IP, ajustável por `PUBLIC_LEADS_RATE_LIMIT_*`) — **migrar para a borda antes de escalar o tráfego pago**.

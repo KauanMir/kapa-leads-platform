@@ -1,9 +1,9 @@
-import { ArrowRightLeft, Inbox, MessageSquareText, Sparkles } from "lucide-react";
+import { ArrowRightLeft, Eye, Inbox, MessageSquareText, Sparkles, UserCheck } from "lucide-react";
 
 import type { TimelineItem } from "@/lib/admin/timeline";
 import { formatDateTime } from "@/lib/format/datetime";
 
-const ICONS = { created: Inbox, status: ArrowRightLeft, note: MessageSquareText, event: Sparkles };
+const ICONS = { created: Inbox, status: ArrowRightLeft, note: MessageSquareText, assigned: UserCheck, audit: Eye, event: Sparkles };
 
 export function Timeline({ items }: { items: TimelineItem[] }) {
   if (items.length === 0) return <p className="text-sm text-muted">Sem histórico.</p>;

@@ -10,7 +10,19 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { ConfigError, createStore, getCampaign, listStoreMembers, rotateCampaignKey, updateCampaign } from "@/lib/admin/config";
-import { addLeadNote, getDashboardCounts, getLeadDetail, getLeadHistory, listLeads, updateLeadStatus } from "@/lib/admin/leads";
+import { summarizeKpis } from "@/lib/admin/kpis";
+import {
+  addLeadNote,
+  assignLead,
+  getDashboardCounts,
+  getLeadDetail,
+  getLeadHistory,
+  getLeadKpis,
+  listLeads,
+  revealLeadCpf,
+  updateLeadStatus,
+} from "@/lib/admin/leads";
+import { getStoreTeam, teamNames } from "@/lib/admin/team";
 import { buildTimeline } from "@/lib/admin/timeline";
 import { loadAdminAccess } from "@/lib/auth/access";
 import { formatFormData } from "@/lib/format/form-data";
@@ -220,7 +232,7 @@ describe("detalhe do lead e CPF", () => {
     const list = await listLeads(users.userA.db, {});
     const detail = await getLeadDetail(users.userA.db, leadA1.id);
     const json = JSON.stringify({ list, detail });
-    expect(json).not.toContain(leadA1.cpf);
+    expect(json.includes(leadA1.cpf)).toBe(false);
     expect(detail?.cpfMasked).toBe(`***.${leadA1.cpf.slice(3, 6)}.${leadA1.cpf.slice(6, 9)}-**`);
     expect(detail).not.toHaveProperty("cpf");
   });
@@ -350,5 +362,50 @@ describe("fluxo de atendimento (vendedor STORE_USER)", () => {
 
     const counts = await getDashboardCounts(db, {});
     expect(counts).toMatchObject({ WON: 1, LOST: 1 });
+  });
+});
+
+describe("operação SDR (camada de dados da Fase 9)", () => {
+  it("SDR assume lead da fila; filtros Meus leads / Sem responsável", async () => {
+    expect(await assignLead(users.userA.db, leadA2, users.userA.id)).toEqual({ ok: true });
+    const mine = await listLeads(users.userA.db, { assignedTo: users.userA.id });
+    expect(mine.rows.map((r) => r.id)).toEqual([leadA2]);
+    expect(mine.rows[0].assignedTo).toBe(users.userA.id);
+    const queue = await listLeads(users.userA.db, { unassigned: true });
+    expect(queue.rows.map((r) => r.id)).toContain(leadA1.id);
+    expect(queue.rows.map((r) => r.id)).not.toContain(leadA2);
+  });
+
+  it("SDR não atribui para outra pessoa; gerente de outra loja não alcança", async () => {
+    expect(await assignLead(users.userA.db, leadA1.id, users.adminB.id)).toEqual({ ok: false, reason: "forbidden" });
+    expect(await assignLead(users.adminB.db, leadA1.id, users.adminB.id)).toEqual({ ok: false, reason: "not_found" });
+    expect(await assignLead(users.inactiveMember.db, leadA1.id, users.inactiveMember.id)).toEqual({ ok: false, reason: "not_found" });
+  });
+
+  it("linha do tempo mostra a atribuição com nome da equipe", async () => {
+    const detail = await getLeadDetail(users.userA.db, leadA2);
+    expect(detail?.assignedTo).toBe(users.userA.id);
+    const history = await getLeadHistory(users.userA.db, leadA2);
+    const team = await getStoreTeam(users.userA.db);
+    const titles = buildTimeline(history.events, history.notes, users.userA.id, teamNames(team)).map((i) => i.title);
+    expect(titles).toContain("Lead assumido por você");
+  });
+
+  it("CPF: revelado só na própria loja", async () => {
+    expect((await revealLeadCpf(users.userA.db, leadA1.id)) === leadA1.cpf).toBe(true);
+    expect(await revealLeadCpf(users.adminB.db, leadA1.id)).toBeNull();
+    // Booleano: uma falha não imprime o CPF.
+    expect(/^\d{11}$/.test((await revealLeadCpf(users.superAdmin.db, leadB1)) ?? "")).toBe(true);
+  });
+
+  it("KPIs: KAPA filtra por loja; SDR vê só a própria carteira", async () => {
+    expect(await assignLead(users.superAdmin.db, leadB1, users.adminB.id)).toEqual({ ok: true });
+    const storeBKpis = summarizeKpis(await getLeadKpis(users.superAdmin.db, { storeId: storeB }));
+    expect(storeBKpis.total).toBe(1);
+    expect(storeBKpis.byAssignee.get(users.adminB.id)?.total).toBe(1);
+
+    const sdr = summarizeKpis(await getLeadKpis(users.userA.db, { storeId: storeA }));
+    expect([...sdr.byAssignee.keys()]).toEqual([users.userA.id]);
+    expect(sdr.byAssignee.get(users.userA.id)?.total).toBe(1);
   });
 });

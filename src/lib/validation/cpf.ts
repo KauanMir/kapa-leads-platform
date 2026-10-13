@@ -24,3 +24,8 @@ export function isValidCpf(cpf: string): boolean {
 
   return checkDigit(9) === digits[9] && checkDigit(10) === digits[10];
 }
+
+/** 52998224725 → 529.982.247-25 (outros formatos voltam como vieram). */
+export function formatCpf(digits: string): string {
+  return /^\d{11}$/.test(digits) ? `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}` : digits;
+}

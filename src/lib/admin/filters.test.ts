@@ -31,7 +31,7 @@ describe("filtros da URL", () => {
       { q: "529.982.247-25", status: "HACK", campanha: "1 or 1=1", loja: UUID, periodo: "x", de: "2026-13", pagina: "-3" },
       "tudo",
     );
-    expect(filters).toEqual({ q: "", status: null, campaignId: null, storeId: UUID, period: "tudo", from: "", to: "", page: 1 });
+    expect(filters).toEqual({ q: "", status: null, campaignId: null, storeId: UUID, assignee: "todos", period: "tudo", from: "", to: "", page: 1 });
   });
 
   it("aceita valores válidos", () => {
@@ -46,6 +46,30 @@ describe("filtros da URL", () => {
   it("monta a query string sem valores vazios e nunca com CPF", () => {
     expect(filtersToQuery({ q: "", status: null, period: "tudo", page: 1 }, "tudo")).toBe("");
     expect(filtersToQuery({ q: "52998224725", status: "NEW", period: "7d", page: 3 }, "tudo")).toBe("?status=NEW&periodo=7d&pagina=3");
+  });
+});
+
+describe("filtro de responsável", () => {
+  it("aceita todos/sem/meus/uuid; o resto vira o padrão do papel", () => {
+    expect(parseUrlFilters({ resp: "sem" }, "tudo").assignee).toBe("sem");
+    expect(parseUrlFilters({ resp: UUID }, "tudo").assignee).toBe(UUID);
+    expect(parseUrlFilters({ resp: "' or 1=1" }, "tudo", "meus").assignee).toBe("meus");
+    expect(parseUrlFilters({}, "tudo", "meus").assignee).toBe("meus");
+  });
+
+  it("vira filtro do banco: sem responsável, meus (usuário logado) ou um SDR", () => {
+    const now = new Date("2026-10-10T15:00:00Z");
+    const base = parseUrlFilters({}, "tudo");
+    expect(toLeadFilters({ ...base, assignee: "sem" }, now, "me")).toMatchObject({ unassigned: true, assignedTo: null });
+    expect(toLeadFilters({ ...base, assignee: "meus" }, now, "me")).toMatchObject({ unassigned: false, assignedTo: "me" });
+    expect(toLeadFilters({ ...base, assignee: UUID }, now, "me")).toMatchObject({ unassigned: false, assignedTo: UUID });
+    expect(toLeadFilters({ ...base, assignee: "todos" }, now, "me")).toMatchObject({ unassigned: false, assignedTo: null });
+  });
+
+  it("URL omite o padrão do papel", () => {
+    expect(filtersToQuery({ assignee: "meus", period: "tudo" }, "tudo", "meus")).toBe("");
+    expect(filtersToQuery({ assignee: "todos", period: "tudo" }, "tudo", "meus")).toBe("?resp=todos");
+    expect(filtersToQuery({ assignee: "sem", period: "tudo" }, "tudo")).toBe("?resp=sem");
   });
 });
 

@@ -13,8 +13,8 @@ type StoreOption = { id: string; name: string };
 function RoleSelect({ id, defaultValue = "STORE_USER" }: { id: string; defaultValue?: string }) {
   return (
     <Select id={id} name="role" defaultValue={defaultValue}>
-      <option value="STORE_USER">Usuário da loja</option>
-      <option value="STORE_ADMIN">Administrador da loja</option>
+      <option value="STORE_USER">SDR (atende os leads)</option>
+      <option value="STORE_ADMIN">Gerente (admin da loja)</option>
     </Select>
   );
 }

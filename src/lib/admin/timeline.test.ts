@@ -33,6 +33,34 @@ describe("buildTimeline", () => {
   });
 });
 
+describe("atribuição e CPF na linha do tempo", () => {
+  const names = new Map([["ana", "Ana SDR"], ["bia", "Bia SDR"], ["ger", "Gerente"]]);
+  const ev = (id: number, type: string, payload: Record<string, string | null>, actor: string | null) =>
+    ({ id, type, payload, created_at: `2026-10-10T13:0${id}:00Z`, actor_id: actor, actor: null });
+
+  it("atribuído, assumido, reatribuído, devolvido e CPF visualizado — com nomes da equipe", () => {
+    const items = buildTimeline(
+      [
+        ev(1, "ASSIGNED", { from: null, to: "ana" }, "ger"),
+        ev(2, "ASSIGNED", { from: "ana", to: "bia" }, "ger"),
+        ev(3, "ASSIGNED", { from: "bia", to: null }, "ger"),
+        ev(4, "ASSIGNED", { from: null, to: ME }, ME),
+        ev(5, "CPF_REVEALED", {}, "ana"),
+      ],
+      [],
+      ME,
+      names,
+    );
+    expect(items.map((i) => [i.kind, i.title, i.actor])).toEqual([
+      ["assigned", "Lead atribuído a Ana SDR", "Gerente"],
+      ["assigned", "Responsável alterado: Ana SDR → Bia SDR", "Gerente"],
+      ["assigned", "Lead devolvido para a fila (sem responsável)", "Gerente"],
+      ["assigned", "Lead assumido por você", "Você"],
+      ["audit", "CPF visualizado", "Ana SDR"],
+    ]);
+  });
+});
+
 describe("personLabel", () => {
   it("usa Você, nome, e-mail ou rótulo neutro (perfil não visível pelo RLS)", () => {
     expect(personLabel(null, null, ME)).toBeNull();

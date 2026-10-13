@@ -31,7 +31,7 @@ export default defineConfig({
     environment: "node",
     projects: [
       { extends: true, test: { name: "unit", include: ["src/**/*.test.{ts,tsx}"] } },
-      { extends: true, test: { name: "rls", include: ["supabase/tests/rls.test.ts"], ...remote } },
+      { extends: true, test: { name: "rls", include: ["supabase/tests/rls.test.ts", "supabase/tests/sdr-operation.test.ts"], ...remote } },
       { extends: true, test: { name: "api", include: ["supabase/tests/public-leads-api.test.ts"], ...remote } },
       { extends: true, test: { name: "admin", include: ["supabase/tests/admin-access.test.ts"], ...remote } },
       { extends: true, test: { name: "e2e", include: ["supabase/tests/admin-e2e.test.ts"], ...remote } },

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { KpiRow } from "@/lib/admin/kpis";
 import { parseLeadSearch } from "@/lib/admin/search";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/format/status";
 import type { DateRange } from "@/lib/format/period";
@@ -12,7 +13,8 @@ import type { Database, Json } from "@/types/database";
  *
  * Sempre recebem o cliente da SESSÃO do usuário: o RLS decide o que cada
  * um vê/altera. Os filtros só estreitam o resultado — nunca ampliam.
- * A coluna `cpf` nunca é selecionada (o papel authenticated nem tem acesso).
+ * A coluna `cpf` nunca é selecionada (o papel authenticated nem tem acesso):
+ * o CPF completo só sai por revealLeadCpf(), auditado no banco.
  */
 
 type Db = SupabaseClient<Database>;
@@ -24,6 +26,10 @@ export type LeadFilters = {
   status?: LeadStatus | null;
   campaignId?: string | null;
   storeId?: string | null;
+  /** Somente leads sem responsável (fila). */
+  unassigned?: boolean;
+  /** Somente leads deste responsável. */
+  assignedTo?: string | null;
   range?: DateRange;
 };
 
@@ -38,13 +44,15 @@ export type LeadListItem = {
   campaignId: string;
   campaignName: string | null;
   storeName: string | null;
+  assignedTo: string | null;
 };
 
 const LIST_COLUMNS =
-  "id, full_name, phone, status, created_at, utm_source, store_id, campaign_id, campaign:campaigns(name, store:stores(name))";
+  "id, full_name, phone, status, created_at, utm_source, store_id, campaign_id, assigned_to, campaign:campaigns(name, store:stores(name))";
 
 type Filterable<T> = {
   eq(column: string, value: string): T;
+  is(column: string, value: null): T;
   gte(column: string, value: string): T;
   lt(column: string, value: string): T;
   ilike(column: string, pattern: string): T;
@@ -55,6 +63,8 @@ function applyFilters<T extends Filterable<T>>(query: T, filters: LeadFilters): 
   if (filters.status) q = q.eq("status", filters.status);
   if (filters.campaignId) q = q.eq("campaign_id", filters.campaignId);
   if (filters.storeId) q = q.eq("store_id", filters.storeId);
+  if (filters.unassigned) q = q.is("assigned_to", null);
+  else if (filters.assignedTo) q = q.eq("assigned_to", filters.assignedTo);
   if (filters.range?.from) q = q.gte("created_at", filters.range.from);
   if (filters.range?.to) q = q.lt("created_at", filters.range.to);
 
@@ -73,6 +83,7 @@ type ListRow = {
   utm_source: string | null;
   store_id: string;
   campaign_id: string;
+  assigned_to: string | null;
   campaign: { name: string; store: { name: string } | null } | null;
 };
 
@@ -88,6 +99,7 @@ function toListItem(row: ListRow): LeadListItem {
     campaignId: row.campaign_id,
     campaignName: row.campaign?.name ?? null,
     storeName: row.campaign?.store?.name ?? null,
+    assignedTo: row.assigned_to,
   };
 }
 
@@ -137,7 +149,7 @@ export async function getDashboardCounts(db: Db, filters: Omit<LeadFilters, "sta
 
 const DETAIL_COLUMNS =
   "id, full_name, cpf_masked, birth_date, phone, email, form_data, status, consent_version, consent_at, " +
-  "utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, referrer, created_at, store_id, " +
+  "utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, referrer, created_at, store_id, assigned_to, " +
   "campaign:campaigns(id, name, form_schema, store:stores(id, name))";
 
 export type LeadDetail = {
@@ -163,6 +175,7 @@ export type LeadDetail = {
   createdAt: string;
   storeId: string;
   storeName: string | null;
+  assignedTo: string | null;
   campaignId: string | null;
   campaignName: string | null;
   formSchema: Json | null;
@@ -188,6 +201,7 @@ type DetailRow = {
   referrer: string | null;
   created_at: string;
   store_id: string;
+  assigned_to: string | null;
   campaign: { id: string; name: string; form_schema: Json; store: { id: string; name: string } | null } | null;
 };
 
@@ -224,6 +238,7 @@ export async function getLeadDetail(db: Db, leadId: string): Promise<LeadDetail 
     createdAt: row.created_at,
     storeId: row.store_id,
     storeName: row.campaign?.store?.name ?? null,
+    assignedTo: row.assigned_to,
     campaignId: row.campaign?.id ?? null,
     campaignName: row.campaign?.name ?? null,
     formSchema: row.campaign?.form_schema ?? null,
@@ -297,4 +312,66 @@ export async function addLeadNote(db: Db, leadId: string, rawBody: string): Prom
     throw new Error(`add note failed (${error.code})`);
   }
   return { ok: true, noteId: data.id };
+}
+
+// ---------------------------------------------------------------------
+// Responsável (SDR) e CPF — sempre por funções do banco com regras próprias
+// ---------------------------------------------------------------------
+
+export type AssignResult = { ok: true } | { ok: false; reason: "not_found" | "forbidden" | "taken" | "invalid" };
+
+const ASSIGN_ERRORS: Record<string, Exclude<AssignResult, { ok: true }>["reason"]> = {
+  KL010: "not_found",
+  "22P02": "not_found",
+  KL011: "forbidden",
+  "42501": "forbidden",
+  KL012: "taken",
+  KL013: "invalid",
+};
+
+/**
+ * Atribui (ou devolve para a fila, com null). Quem pode o quê é decidido
+ * pela função assign_lead no banco — não por esta camada.
+ */
+export async function assignLead(db: Db, leadId: string, assigneeId: string | null): Promise<AssignResult> {
+  // O tipo gerado não aceita null; a função do banco aceita (= sem responsável).
+  const { error } = await db.rpc("assign_lead", { p_lead_id: leadId, p_assignee_id: assigneeId as string });
+  if (!error) return { ok: true };
+  const reason = ASSIGN_ERRORS[error.code];
+  if (reason) return { ok: false, reason };
+  throw new Error(`assign lead failed (${error.code})`);
+}
+
+/**
+ * CPF completo de UM lead. O banco confere o acesso e grava CPF_REVEALED.
+ * Nunca registre o valor retornado (log, URL, analytics).
+ */
+export async function revealLeadCpf(db: Db, leadId: string): Promise<string | null> {
+  const { data, error } = await db.rpc("reveal_lead_cpf", { p_lead_id: leadId });
+  if (error) {
+    if (["KL010", "22P02", "42501"].includes(error.code)) return null;
+    throw new Error(`reveal cpf failed (${error.code})`);
+  }
+  return typeof data === "string" ? data : null;
+}
+
+/**
+ * Linhas para os KPIs (função lead_kpis, com o RLS do usuário). SDR recebe só
+ * a própria carteira e a fila sem responsável — a regra está no banco.
+ */
+export async function getLeadKpis(db: Db, filters: Pick<LeadFilters, "storeId" | "campaignId" | "range">): Promise<KpiRow[]> {
+  const args: Database["public"]["Functions"]["lead_kpis"]["Args"] = {};
+  if (filters.storeId) args.p_store_id = filters.storeId;
+  if (filters.campaignId) args.p_campaign_id = filters.campaignId;
+  if (filters.range?.from) args.p_from = filters.range.from;
+  if (filters.range?.to) args.p_to = filters.range.to;
+  const { data, error } = await db.rpc("lead_kpis", args);
+  if (error) throw new Error(`lead kpis failed (${error.code})`);
+  return (data ?? []).map((row) => ({
+    assignedTo: (row.assigned_to as string | null) ?? null,
+    status: row.status,
+    leads: Number(row.leads),
+    firstContactLeads: Number(row.first_contact_leads),
+    firstContactSeconds: Number(row.first_contact_seconds),
+  }));
 }
