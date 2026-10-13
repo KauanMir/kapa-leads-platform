@@ -55,12 +55,12 @@ if (statusOnly) {
   }
   if (linkedRef() !== ref) throw new Error("O CLI não ficou vinculado ao DEV. Abortado.");
 
-  const [guard] = query(
-    ref,
-    `select to_regclass('public.stores') is not null
-        and exists (select 1 from public.stores where slug = 'vitrine-veiculos') as tem_loja_de_producao`,
-  );
-  if (guard.tem_loja_de_producao) throw new Error("Este banco tem a loja de PRODUÇÃO. Abortado.");
+  // Duas consultas: num banco vazio, citar public.stores já dá erro de parse.
+  const [{ estrutura }] = query(ref, "select to_regclass('public.stores') is not null as estrutura");
+  if (estrutura) {
+    const [guard] = query(ref, "select exists (select 1 from public.stores where slug = 'vitrine-veiculos') as tem_loja_de_producao");
+    if (guard.tem_loja_de_producao) throw new Error("Este banco tem a loja de PRODUÇÃO. Abortado.");
+  }
 
   console.log("Migrations (as mesmas de produção):");
   supabase("db", "push", "--linked", "--yes");

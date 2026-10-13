@@ -14,7 +14,9 @@ export const PRODUCTION_SUPABASE_REF = "scjkyzdagwkscuxydgld";
  * Supabase(s) de DESENVOLVIMENTO/TESTES. As suítes remotas só rodam em um ref
  * desta lista (lista vazia = suítes remotas bloqueadas).
  */
-export const DEV_SUPABASE_REFS: readonly string[] = [];
+export const DEV_SUPABASE_REFS: readonly string[] = [
+  "esnyxwtyrciiaspgpsch", // kapa-leads-platform-dev (São Paulo)
+];
 
 /** Loja que só existe no DEV (supabase/seed-dev.sql). As suítes remotas exigem que ela exista. */
 export const DEV_MARKER_STORE_SLUG = "vitrine-veiculos-dev";

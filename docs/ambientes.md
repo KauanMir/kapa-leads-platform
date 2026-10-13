@@ -15,7 +15,7 @@ produção.** Produção nunca recebe testes automatizados nem dados fictícios.
 | Projeto Supabase | Ref | Conteúdo |
 |---|---|---|
 | `kapa-leads-platform` (PRODUÇÃO, São Paulo) | `scjkyzdagwkscuxydgld` | Dados reais. Vitrine Veículos + Duelo de Aprovações. |
-| `kapa-leads-platform-dev` (DEV, São Paulo) | em `DEV_SUPABASE_REFS` | Só dados fictícios: Vitrine Veículos DEV / Duelo de Aprovações DEV, Fortium DEV / Aprova Tudo DEV, sobras temporárias das suítes. |
+| `kapa-leads-platform-dev` (DEV, São Paulo, em **outra conta Supabase**) | `esnyxwtyrciiaspgpsch` | Só dados fictícios: Vitrine Veículos DEV / Duelo de Aprovações DEV, Fortium DEV / Aprova Tudo DEV, sobras temporárias das suítes. |
 
 Os refs não são segredo (fazem parte da URL pública) e ficam versionados em `src/lib/supabase/project.ts` — a fonte
 única usada pelo build, pelas suítes e pelos scripts.
@@ -76,6 +76,9 @@ NEXT_PUBLIC_KAPA_CONSENT_VERSION=2026-10-v1
 | `npm run prod:check` | Conferência de produção: leads, SUPER_ADMIN ativo, Vitrine/Duelo ativas, lojas de teste. Só contagens. | Só leitura |
 
 Os três últimos usam `supabase db query` (Management API, login do CLI): sem senha do banco e sem chaves no disco.
+O login do CLI precisa enxergar o projeto consultado: `dev:setup` precisa do DEV; `prod:check` precisa da produção;
+`db:compare` precisa dos dois. Como DEV e produção estão em contas Supabase diferentes, a conta logada no CLI tem
+que ser membro das duas organizações (papel **Developer** basta; nunca dar acesso à produção a quem não precisa).
 
 ## 5. LP em Preview
 

@@ -134,20 +134,23 @@ Situação em 13/10/2026 (✅ feito, ⏳ pendente). Fluxo diário dos usuários:
 2. ✅ Supabase Auth: Site URL / Redirect URLs (seção 2).
 3. ✅ Origem da LP cadastrada na campanha (seção 3).
 4. ✅ Teste real LP de produção → API → Supabase → Admin (Fase 7); leads de teste apagados (produção com 0 leads).
-5. ⏳ Supabase DEV separado; previews e testes só no DEV ([ambientes.md](ambientes.md)).
-6. ⏳ Suítes remotas verdes no DEV; `npm run prod:check` OK.
+5. ✅ Supabase DEV separado (`kapa-leads-platform-dev`); `.env.local` e Vercel Preview/Development no DEV
+   ([ambientes.md](ambientes.md)).
+6. ✅ Suítes remotas verdes no DEV (RLS 22, API 9, Admin 23, E2E 13) e teste LP local → API → DEV.
+7. ⏳ `npm run db:compare` (DEV x produção, item a item) e `npm run prod:check` com o CLI enxergando as duas contas.
+8. ⏳ Remover `http://localhost:3000/**` das Redirect URLs do projeto de produção (seção 2).
 
 **Pessoas**
 
-7. ⏳ Primeiro STORE_ADMIN real da Vitrine (e STORE_USERs, se houver), vinculados só à Vitrine Veículos.
-8. ⏳ Checagem de permissões com os usuários reais ([operacao-lojas.md §5](operacao-lojas.md#5-checagem-depois-de-criar-os-usuários-reais)).
+9. ⏳ Primeiro STORE_ADMIN real da Vitrine (e STORE_USERs, se houver), vinculados só à Vitrine Veículos.
+10. ⏳ Checagem de permissões com os usuários reais ([operacao-lojas.md §5](operacao-lojas.md#5-checagem-depois-de-criar-os-usuários-reais)).
 
 **ANTES DE TRÁFEGO REAL (bloqueantes)**
 
-9. ⏳ **Revisão jurídica/comercial final** da Política de Privacidade e dos Termos de Uso (seção 4).
-10. ⏳ **"PRÉ-APROVADO"**: validação comercial/jurídica do texto da LP antes de campanha pública.
-11. ⏳ **ANTES DE OPERAÇÃO COMERCIAL REAL: upgrade do time da Vercel para Pro** (o Hobby não permite uso comercial).
-12. ⏳ Antes de escalar o tráfego pago: proteção na borda (seção 5).
+11. ⏳ **Revisão jurídica/comercial final** da Política de Privacidade e dos Termos de Uso (seção 4).
+12. ⏳ **"PRÉ-APROVADO"**: validação comercial/jurídica do texto da LP antes de campanha pública.
+13. ⏳ **ANTES DE OPERAÇÃO COMERCIAL REAL: upgrade do time da Vercel para Pro** (o Hobby não permite uso comercial).
+14. ⏳ Antes de escalar o tráfego pago: proteção na borda (seção 5).
 
 **Fora desta etapa (só com autorização explícita)**
 
