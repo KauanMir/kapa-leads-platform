@@ -67,8 +67,8 @@ importam para e-mails enviados pelo próprio Supabase (convite / redefinição p
 antes do go-live:
 
 - **Site URL:** `https://leads.assessoriakapa.com.br`
-- **Redirect URLs:** `https://leads.assessoriakapa.com.br/**`. (`http://localhost:3000/**` vai para o projeto DEV; remover
-  do projeto de produção quando o DEV estiver em uso.)
+- **Redirect URLs:** somente `https://leads.assessoriakapa.com.br/**`. (`http://localhost:3000/**` foi removida da produção em
+  13/10/2026; o desenvolvimento local usa o projeto DEV.)
 
 Configurado em 13/10/2026.
 
@@ -140,7 +140,9 @@ Situação em 13/10/2026 (✅ feito, ⏳ pendente). Fluxo diário dos usuários:
 7. ✅ `npm run db:compare`: DEV e produção com a mesma estrutura (400 itens). `npm run prod:check`: 0 leads,
    SUPER_ADMIN ativo, Vitrine e Duelo ativas, nenhuma loja de teste. (O CLI enxerga as duas contas: a conta de produção
    é Developer na organização do DEV.)
-8. ⏳ Remover `http://localhost:3000/**` das Redirect URLs do projeto de produção (seção 2).
+8. ✅ `http://localhost:3000/**` removida das Redirect URLs da produção (seção 2).
+   Deploys da Fase 8 Ready (plataforma `7813cfb`, LP `98cffef`); Production → Supabase de produção; Preview/Development →
+   DEV; API recusa (403) origens de preview `*.vercel.app`. **Parte técnica da Fase 8 encerrada em 13/10/2026.**
 
 **Pessoas**
 
