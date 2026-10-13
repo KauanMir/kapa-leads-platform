@@ -5,24 +5,35 @@
  * Para trocar a cor de destaque da marca, altere apenas --accent*.
  */
 :root {
-  --background: #f5f6f8;
+  --background: #f3f4f7;
   --surface: #ffffff;
-  --foreground: #101828;
-  --muted: #5d6779;
-  --border: #e3e6eb;
-  --border-strong: #cfd4dc;
-  --accent: #1d4ed8;
-  --accent-hover: #1e40af;
-  --accent-soft: #eef3ff;
+  --surface-muted: #f8f9fb;
+  --foreground: #0d1526;
+  --muted: #646d7e;
+  --border: #e6e8ee;
+  --border-strong: #d2d6df;
+  --accent: #2557e8;
+  --accent-hover: #1b45c4;
+  --accent-soft: #edf2ff;
   --danger: #b42318;
   --danger-soft: #fef3f2;
   --success: #067647;
   --success-soft: #ecfdf3;
+  --warning: #b54708;
+  --warning-soft: #fffaeb;
+  --whatsapp: #128c4a;
+  --whatsapp-hover: #0e7a3f;
+  /* Menu lateral escuro. */
+  --sidebar: #0c1222;
+  --sidebar-hover: #182036;
+  --sidebar-line: #1f2840;
+  --sidebar-text: #a9b2c6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-line: var(--border);
@@ -34,6 +45,16 @@
   --color-danger-soft: var(--danger-soft);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-whatsapp: var(--whatsapp);
+  --color-whatsapp-hover: var(--whatsapp-hover);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-line: var(--sidebar-line);
+  --color-sidebar-text: var(--sidebar-text);
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.03);
+  --shadow-raised: 0 4px 16px -4px rgb(16 24 40 / 0.08), 0 2px 4px -2px rgb(16 24 40 / 0.04);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

@@ -3,7 +3,7 @@
 Guia para a loja (ex.: Vitrine Veículos) usar o Admin `https://leads.assessoriakapa.com.br`.
 
 > **O KAPA Leads não é um CRM.** É um sistema simples para receber o lead da LP, listar, abrir, ver as informações
-> básicas, ligar/abrir o WhatsApp e copiar o resumo. O CRM de verdade é o **KAPA CRM**. A passagem para o vendedor é
+> básicas, abrir o WhatsApp e copiar o resumo. O CRM de verdade é o **KAPA CRM**. A passagem para o vendedor é
 > manual (WhatsApp pessoal). Não há Meta, WhatsApp oficial, automações nem distribuição automática.
 
 ## 1. Modelo de operação
@@ -70,7 +70,7 @@ Usuário ou vínculo desativado não assume nem recebe leads. Se um SDR sair, o 
 
 **O responsável vale de verdade** (regra no banco, não só na tela):
 
-| Para o SDR | Ver | Assumir | Status / observação / CPF / ligar / resumo |
+| Para o SDR | Ver | Assumir | Status / observação / CPF / WhatsApp / resumo |
 |---|---|---|---|
 | Lead **dele** | ✅ | — | ✅ |
 | Lead **sem responsável** | ✅ | ✅ | ❌ — assume primeiro |
@@ -100,9 +100,10 @@ A coluna **Responsável** mostra o nome do SDR ou "Sem responsável".
 | **Ganho** | Venda concluída. |
 | **Perdido** | Encerrado sem venda (desistiu, comprou em outro lugar, sem retorno). Registrar o motivo numa observação. |
 
-Tela do lead, na ordem: **nome**, **telefone**, botões **LIGAR** · **WHATSAPP** (abre o WhatsApp com mensagem
-sugerida, nada é enviado sozinho) · **COPIAR RESUMO**, dados do formulário, dados pessoais (CPF mascarado), campanha
-e origem e, por último, **responsável**, **status** e **observações/histórico**.
+Tela do lead: no topo, **nome**, **telefone**, botões **WHATSAPP** (abre o WhatsApp com mensagem sugerida, nada é
+enviado sozinho) · **COPIAR RESUMO** e, logo abaixo, **status** e **responsável**. Depois: **Simulação** (valor
+desejado, entrada e veículo na troca em destaque), dados pessoais (CPF mascarado), campanha e origem e o
+**histórico** (mais recente primeiro, por dia), com o campo de observação.
 
 ## 7. Repasse ao vendedor (manual)
 
@@ -152,7 +153,7 @@ Observações não podem ser editadas nem apagadas (histórico confiável).
 
 ## 10. Dashboard (contagens simples)
 
-Só contagens, sem gráficos, ranking ou métricas de CRM. Seguem o período, a campanha e a loja escolhidos no filtro
+Só contagens (com uma barra de proporção por status), sem ranking nem métricas de CRM. Seguem o período, a campanha e a loja escolhidos no filtro
 (período = data de chegada do lead).
 
 **Gerente / KAPA:** Leads recebidos, Sem responsável e um número por status (Novo, Contatado, Em atendimento, Ganho,
@@ -170,7 +171,7 @@ responsável**. O SDR não vê os números de outros SDRs (regra no banco, funç
 | Quem | Deve |
 |---|---|
 | Gerente (STORE_ADMIN) Vitrine | Entrar; ver só a Vitrine (leads, campanhas, equipe em **Minha loja**, Dashboard com **Equipe**); atribuir um lead a um SDR; **não** ver "Configurações KAPA" nem outra loja. |
-| SDR (STORE_USER) Vitrine | Entrar; cair em **Meus leads**; assumir um lead da fila; no próprio lead: mudar status, observar, ligar/WhatsApp, copiar resumo, revelar CPF; no lead de um colega: só ver quem atende; **não** ver "Configurações KAPA", **Minha loja** nem números de outros SDRs. |
+| SDR (STORE_USER) Vitrine | Entrar; cair em **Meus leads**; assumir um lead da fila; no próprio lead: mudar status, observar, WhatsApp, copiar resumo, revelar CPF; no lead de um colega: só ver quem atende; **não** ver "Configurações KAPA", **Minha loja** nem números de outros SDRs. |
 | KAPA | Continuar vendo tudo. |
 
 As mesmas regras são cobertas automaticamente no DEV pelas suítes `test:rls` (inclui `sdr-operation`), `test:admin`

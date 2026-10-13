@@ -94,7 +94,7 @@ docs/                  documentação (ex.: guia de integração das LPs)
 - A loja é sempre descoberta pelo backend a partir da campanha (`campaignKey`); `store_id` enviado por LP nunca é aceito.
 - RLS ligado em todas as tabelas: uma loja jamais acessa dados de outra.
 
-> **Escopo:** o KAPA Leads é a captura e visualização simples dos leads das LPs (receber, listar, abrir, ligar/WhatsApp,
+> **Escopo:** o KAPA Leads é a captura e visualização simples dos leads das LPs (receber, listar, abrir, WhatsApp,
 > copiar resumo, status e observações). **Não é CRM** — o CRM é o KAPA CRM. Sem Meta, WhatsApp oficial ou automações.
 
 ## Fases

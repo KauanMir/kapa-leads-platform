@@ -206,13 +206,13 @@ describe("STORE_USER (SDR)", () => {
     note: html.includes('id="note-body"'),
     cpf: html.includes("REVELAR CPF"),
     summary: html.includes("COPIAR RESUMO"),
-    phone: html.includes("tel:+55"),
+    whatsapp: html.includes("https://wa.me/"),
     claim: html.includes("ASSUMIR LEAD"),
   });
 
-  it("meu lead: operação normal (status, observação, REVELAR CPF, COPIAR RESUMO, telefone) — CPF completo nunca no HTML", async () => {
+  it("meu lead: operação normal (status, observação, REVELAR CPF, COPIAR RESUMO, WhatsApp) — CPF completo nunca no HTML", async () => {
     const res = await get(`/leads/${leadA.id}`, cookies.storeUser);
-    expect(works(res.html)).toEqual({ status: true, note: true, cpf: true, summary: true, phone: true, claim: false });
+    expect(works(res.html)).toEqual({ status: true, note: true, cpf: true, summary: true, whatsapp: true, claim: false });
     expect(res.html).toContain("Lead: Lead Visivel Alfa");
     expect(res.html.includes(leadA.cpf)).toBe(false);
     expect(res.html.includes(`${leadA.cpf.slice(0, 3)}.${leadA.cpf.slice(3, 6)}.${leadA.cpf.slice(6, 9)}-${leadA.cpf.slice(9)}`)).toBe(false);
@@ -220,14 +220,14 @@ describe("STORE_USER (SDR)", () => {
 
   it("lead sem responsável: só ASSUMIR LEAD", async () => {
     const res = await get(`/leads/${leadQueue}`, cookies.storeUser);
-    expect(works(res.html)).toEqual({ status: false, note: false, cpf: false, summary: false, phone: false, claim: true });
+    expect(works(res.html)).toEqual({ status: false, note: false, cpf: false, summary: false, whatsapp: false, claim: true });
     expect(res.html).toContain("Assuma o lead para");
   });
 
   it("lead de outro SDR: mostra quem atende, sem nenhuma ação de trabalho", async () => {
     const res = await get(`/leads/${leadOther}`, cookies.storeUser);
     expect(res.html).toContain("Este lead está sendo atendido por E2E Colega SDR.");
-    expect(works(res.html)).toEqual({ status: false, note: false, cpf: false, summary: false, phone: false, claim: false });
+    expect(works(res.html)).toEqual({ status: false, note: false, cpf: false, summary: false, whatsapp: false, claim: false });
   });
 
   it("detalhe mostra CPF mascarado e ações de contato", async () => {
@@ -235,8 +235,9 @@ describe("STORE_USER (SDR)", () => {
     expect(res.html).toContain("Lead Visivel Alfa");
     expect(res.html).toContain(`***.${leadA.cpf.slice(3, 6)}.${leadA.cpf.slice(6, 9)}-**`);
     expect(res.html.includes(leadA.cpf)).toBe(false);
-    expect(res.html).toContain("tel:+5511987651234");
     expect(res.html).toContain("https://wa.me/5511987651234");
+    // Sem botão LIGAR.
+    expect(res.html).not.toContain("tel:+55");
     // Controle: página permitida não renderiza o "não encontrado".
     expect(renderedNotFound(res.html)).toBe(false);
   });

@@ -18,8 +18,8 @@ As permissões vêm do banco (`profiles.is_super_admin` e `store_members.role`),
 | Papel | Vê | Pode |
 |---|---|---|
 | **SUPER_ADMIN** (KAPA) | Todas as lojas, campanhas, leads e usuários | Tudo do Admin + Configurações (lojas, campanhas, usuários) |
-| **STORE_ADMIN** | Lojas onde é membro ativo: leads, campanhas e equipe | Alterar status, adicionar observações, ligar/WhatsApp |
-| **STORE_USER** | Leads e campanhas das lojas onde é membro ativo | Alterar status, adicionar observações, ligar/WhatsApp |
+| **STORE_ADMIN** | Lojas onde é membro ativo: leads, campanhas e equipe | Alterar status, adicionar observações, WhatsApp |
+| **STORE_USER** | Leads e campanhas das lojas onde é membro ativo | Alterar status, adicionar observações, WhatsApp |
 
 Um usuário pode pertencer a várias lojas (vê todas elas).
 
@@ -29,7 +29,7 @@ Um usuário pode pertencer a várias lojas (vê todas elas).
 |---|---|---|
 | `/dashboard` | todos | Contagem por status (total, novos, contatados, em atendimento, ganhos, perdidos) e 10 leads mais recentes. Filtros: período, campanha, loja. Cards levam à lista filtrada. |
 | `/leads` | todos | Lista com busca (nome ou telefone), status, campanha, loja, período; 25 por página; filtros na URL. Sem CPF. Cards no celular. |
-| `/leads/[id]` | todos | Ações rápidas (LIGAR, WHATSAPP, COPIAR TELEFONE), dados pessoais com **CPF mascarado**, dados do formulário (via `form_schema`), origem/UTMs, status, observações e linha do tempo. |
+| `/leads/[id]` | todos | Topo com nome, telefone, WHATSAPP e COPIAR RESUMO, status e responsável; simulação (via `form_schema`), dados pessoais com **CPF mascarado**, campanha/origem e histórico com observações. |
 | `/loja` | STORE_ADMIN | Campanhas e equipe das lojas que administra (somente leitura). |
 | `/perfil` | todos | Nome e troca de senha. |
 | `/config/lojas` | SUPER_ADMIN | Listar, criar, ativar/desativar lojas. |

@@ -39,8 +39,13 @@ export default async function LeadsPage(props: PageProps<"/leads">) {
   return (
     <>
       <PageHeader
-        title="Leads"
-        description={manager ? "Distribua os leads para os SDRs e acompanhe o atendimento." : "Seus leads e a fila sem responsável."}
+        title={
+          <span className="flex items-center gap-3">
+            Leads
+            <span className="rounded-full bg-line/70 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-muted">{result.total.toLocaleString("pt-BR")}</span>
+          </span>
+        }
+        description={manager ? "Acompanhe e distribua os leads da loja." : "Seus leads e a fila para assumir."}
       />
 
       <AssigneeTabs current={filters.assignee} hrefFor={(assignee) => hrefFor({ assignee })} />
@@ -57,7 +62,7 @@ export default async function LeadsPage(props: PageProps<"/leads">) {
         }}
       />
 
-      <Card className="mt-6 overflow-hidden">
+      <Card className="mt-4 overflow-hidden">
         <LeadsTable
           rows={result.rows}
           showStore={showStore}

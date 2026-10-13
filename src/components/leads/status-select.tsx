@@ -24,17 +24,17 @@ export function StatusSelect({ leadId, status }: { leadId: string; status: LeadS
 
   return (
     <div>
-      <label htmlFor="lead-status" className="mb-1.5 block text-sm font-medium">
+      <label htmlFor="lead-status" className="mb-1.5 block text-[13px] font-medium text-muted">
         Status
       </label>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-1">
         <select
           id="lead-status"
           value={optimisticStatus}
           onChange={(event) => onChange(event.target.value)}
           disabled={pending}
           aria-describedby="lead-status-msg"
-          className={`h-11 rounded-lg px-3 pr-8 text-[15px] font-semibold ring-1 ring-inset ${STATUS_STYLES[optimisticStatus]}`}
+          className={`h-11 w-full cursor-pointer rounded-xl px-3 pr-8 text-[15px] font-semibold ring-1 ring-inset ${STATUS_STYLES[optimisticStatus]}`}
         >
           {LEAD_STATUSES.map((value) => (
             <option key={value} value={value}>
@@ -42,7 +42,7 @@ export function StatusSelect({ leadId, status }: { leadId: string; status: LeadS
             </option>
           ))}
         </select>
-        <p id="lead-status-msg" role={message?.tone === "error" ? "alert" : "status"} className={`text-sm ${message?.tone === "error" ? "text-danger" : "text-muted"}`}>
+        <p id="lead-status-msg" role={message?.tone === "error" ? "alert" : "status"} className={`text-[13px] empty:hidden ${message?.tone === "error" ? "text-danger" : "text-muted"}`}>
           {pending ? "Salvando…" : message?.text}
         </p>
       </div>

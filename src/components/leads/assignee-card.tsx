@@ -1,8 +1,9 @@
 "use client";
 
-import { UserCheck } from "lucide-react";
+import { UserRoundX } from "lucide-react";
 import { useState, useTransition } from "react";
 
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { assignLeadAction, claimLeadAction } from "@/lib/actions/leads";
 
@@ -44,7 +45,7 @@ export function AssigneeCard({
 
   return (
     <div>
-      <p className="mb-1.5 text-sm font-medium">Responsável pelo lead</p>
+      <p className="mb-1.5 text-[13px] font-medium text-muted">Responsável</p>
 
       {canManage ? (
         <select
@@ -52,7 +53,7 @@ export function AssigneeCard({
           value={assignedTo ?? ""}
           disabled={pending}
           onChange={(event) => run(() => assignLeadAction(leadId, event.target.value), "Responsável atualizado.")}
-          className="h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-[15px] font-semibold"
+          className="h-11 w-full cursor-pointer rounded-xl border border-line-strong bg-surface px-3 text-[15px] font-semibold shadow-sm"
         >
           <option value="">Sem responsável</option>
           {selectOptions.map((option) => (
@@ -62,19 +63,25 @@ export function AssigneeCard({
           ))}
         </select>
       ) : (
-        <p className="flex items-center gap-2 text-[15px] font-semibold">
-          <UserCheck aria-hidden="true" className="size-4 text-muted" />
+        <p className="flex h-11 items-center gap-2.5 text-[15px] font-semibold">
+          {current ? (
+            <Avatar name={assigneeName ?? current} size="sm" />
+          ) : (
+            <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-amber-300 bg-warning-soft text-warning">
+              <UserRoundX className="size-4" />
+            </span>
+          )}
           {current ?? "Sem responsável"}
         </p>
       )}
 
       {!canManage && !assignedTo ? (
-        <Button size="lg" className="mt-3 w-full" disabled={pending} onClick={() => run(() => claimLeadAction(leadId), "Lead assumido.")}>
+        <Button size="lg" className="mt-2 w-full" disabled={pending} onClick={() => run(() => claimLeadAction(leadId), "Lead assumido.")}>
           {pending ? "Assumindo…" : "ASSUMIR LEAD"}
         </Button>
       ) : null}
 
-      <p role={message?.tone === "error" ? "alert" : "status"} className={`mt-2 text-sm ${message?.tone === "error" ? "text-danger" : "text-muted"}`}>
+      <p role={message?.tone === "error" ? "alert" : "status"} className={`mt-1 text-[13px] empty:hidden ${message?.tone === "error" ? "text-danger" : "text-muted"}`}>
         {pending && canManage ? "Salvando…" : message?.text}
       </p>
     </div>

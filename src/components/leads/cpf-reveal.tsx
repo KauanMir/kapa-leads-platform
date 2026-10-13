@@ -73,7 +73,7 @@ export function CpfReveal({ leadId, masked }: { leadId: string; masked: string |
           {error}
         </span>
       ) : null}
-      {cpf ? <span className="w-full text-xs font-normal text-muted">Visualização registrada no histórico. Oculta em 1 minuto.</span> : null}
+      {cpf ? <span className="w-full text-xs font-normal text-muted">Registrado no histórico. Some em 1 minuto.</span> : null}
     </span>
   );
 }

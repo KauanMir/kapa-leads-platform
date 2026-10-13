@@ -1,9 +1,11 @@
+import { ArrowRight, ChevronRight, Inbox, UserRoundX, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LeadFilters } from "@/components/leads/lead-filters";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { STATUS_DOTS } from "@/components/leads/status-badge";
+import { Avatar } from "@/components/ui/avatar";
 import { buttonClasses } from "@/components/ui/button";
 import { Card, CardHeader, PageHeader } from "@/components/ui/card";
 import { listCampaigns } from "@/lib/admin/config";
@@ -21,40 +23,81 @@ export const metadata: Metadata = { title: "Dashboard · KAPA Leads" };
 
 const DEFAULT_PERIOD = "30d";
 
-type KpiCard = { label: string; value: string; href?: string; status?: LeadStatus; hint?: string };
+const n = (value: number) => value.toLocaleString("pt-BR");
 
-function KpiCards({ cards, label }: { cards: KpiCard[]; label: string }) {
-  // Uma linha no desktop largo (gerente: 7 cards; SDR: 6).
-  const xl = cards.length >= 7 ? "xl:grid-cols-7" : "xl:grid-cols-6";
+type StatusRow = { status: LeadStatus; label: string; value: number; href: string };
+
+/** Contagem por status: barra de proporção + uma linha clicável por status. */
+function StatusBreakdown({ title, rows }: { title: string; rows: StatusRow[] }) {
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
   return (
-    <section aria-label={label} className={`mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 ${xl}`}>
-      {cards.map((card) => {
-        const content = (
-          <>
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-              {card.status ? <span aria-hidden="true" className={`size-2 rounded-full ${STATUS_DOTS[card.status]}`} /> : null}
-              {card.label}
-            </p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums">{card.value}</p>
-            {card.hint ? <p className="mt-1 text-xs text-muted">{card.hint}</p> : null}
-          </>
-        );
-        const className = "rounded-xl border border-line bg-surface p-4";
-        return card.href ? (
-          <Link key={card.label} href={card.href} className={`${className} transition-colors hover:border-line-strong`}>
-            {content}
-          </Link>
-        ) : (
-          <div key={card.label} className={className}>
-            {content}
-          </div>
-        );
-      })}
-    </section>
+    <Card className="flex flex-col p-5">
+      <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
+      <div aria-hidden="true" className="mt-4 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-line/70">
+        {total > 0
+          ? rows.map((row) => (row.value > 0 ? <span key={row.status} className={STATUS_DOTS[row.status]} style={{ width: `${(row.value / total) * 100}%` }} /> : null))
+          : null}
+      </div>
+      <ul className="mt-3 divide-y divide-line">
+        {rows.map((row) => (
+          <li key={row.status}>
+            <Link href={row.href} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-surface-muted">
+              <span aria-hidden="true" className={`size-2.5 rounded-full ${STATUS_DOTS[row.status]}`} />
+              <span className="flex-1 text-[15px] font-medium">{row.label}</span>
+              <span className="text-lg font-semibold tabular-nums">{n(row.value)}</span>
+              <ChevronRight aria-hidden="true" className="size-4 text-line-strong group-hover:text-muted" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
-const n = (value: number) => value.toLocaleString("pt-BR");
+/** Número principal (destaque em azul). */
+function HeroStat({ label, value, href, cta }: { label: string; value: number; href: string; cta: string }) {
+  return (
+    <Link
+      href={href}
+      className="group relative flex flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-[#2a5cf0] to-[#1838a8] p-4 text-white shadow-raised sm:p-5"
+    >
+      <span aria-hidden="true" className="absolute -right-10 -top-12 size-40 rounded-full bg-white/10" />
+      <span aria-hidden="true" className="absolute -bottom-16 right-10 size-32 rounded-full bg-white/[0.06]" />
+      <span className="relative flex items-center gap-2 text-sm font-medium text-white/80">
+        <Inbox aria-hidden="true" className="size-4" />
+        {label}
+      </span>
+      <span className="relative mt-3 text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{n(value)}</span>
+      <span className="relative mt-auto flex items-center gap-1 pt-5 text-sm font-semibold text-white/90 group-hover:text-white">
+        {cta}
+        <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </Link>
+  );
+}
+
+/** Fila sem responsável: âmbar quando há leads esperando. */
+function QueueStat({ label, value, href, hint }: { label: string; value: number; href: string; hint: string }) {
+  const waiting = value > 0;
+  return (
+    <Link
+      href={href}
+      className={`group flex flex-col rounded-2xl border p-4 shadow-card transition-colors sm:p-5 ${
+        waiting ? "border-amber-200 bg-warning-soft hover:border-amber-300" : "border-line bg-surface hover:border-line-strong"
+      }`}
+    >
+      <span className={`flex items-center gap-2 text-sm font-medium ${waiting ? "text-warning" : "text-muted"}`}>
+        <UserRoundX aria-hidden="true" className="size-4" />
+        {label}
+      </span>
+      <span className="mt-3 text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{n(value)}</span>
+      <span className={`mt-auto flex items-center gap-1 pt-6 text-sm font-semibold ${waiting ? "text-warning" : "text-muted"}`}>
+        {waiting ? hint : "Nenhum lead esperando"}
+        {waiting ? <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" /> : null}
+      </span>
+    </Link>
+  );
+}
 
 export default async function DashboardPage(props: PageProps<"/dashboard">) {
   const searchParams = await props.searchParams;
@@ -67,46 +110,38 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
 
   const [kpiRows, recent, campaigns, team] = await Promise.all([
     getLeadKpis(db, leadFilters),
-    listLeads(db, manager ? leadFilters : { ...leadFilters, assignedTo: context.userId }, 1, 10),
+    listLeads(db, manager ? leadFilters : { ...leadFilters, assignedTo: context.userId }, 1, 8),
     listCampaigns(db),
     getStoreTeam(db),
   ]);
   const kpis = summarizeKpis(kpiRows);
 
   const showStore = context.isSuperAdmin || context.stores.length > 1;
-  // Os cards levam para /leads com o mesmo período/campanha/loja.
+  // Os números levam para /leads com o mesmo período/campanha/loja.
   const leadsDefault: AssigneeFilter = manager ? "todos" : "meus";
   const leadsHref = (next: { status?: LeadStatus; assignee?: AssigneeFilter }) =>
     `/leads${filtersToQuery({ ...scoped, assignee: next.assignee ?? leadsDefault, status: next.status ?? null }, "tudo", leadsDefault)}`;
 
   // Painel simples (KAPA Leads não é CRM): recebidos, fila e status.
-  let cards: KpiCard[];
-  if (manager) {
-    cards = [
-      { label: "Leads recebidos", value: n(kpis.total), href: leadsHref({ assignee: "todos" }) },
-      { label: "Sem responsável", value: n(kpis.unassigned), href: leadsHref({ assignee: "sem" }) },
-      ...LEAD_STATUSES.map((status) => ({ label: STATUS_LABELS[status], value: n(kpis.byStatus[status]), status, href: leadsHref({ status }) })),
-    ];
-  } else {
-    const mine = kpis.byAssignee.get(context.userId) ?? EMPTY_BLOCK;
-    cards = [
-      { label: "Meus novos", value: n(mine.byStatus.NEW), status: "NEW", href: leadsHref({ status: "NEW" }) },
-      { label: "Meus contatados", value: n(mine.byStatus.CONTACTED), status: "CONTACTED", href: leadsHref({ status: "CONTACTED" }) },
-      { label: "Em atendimento", value: n(mine.byStatus.IN_PROGRESS), status: "IN_PROGRESS", href: leadsHref({ status: "IN_PROGRESS" }) },
-      { label: "Ganhos", value: n(mine.byStatus.WON), status: "WON", href: leadsHref({ status: "WON" }) },
-      { label: "Perdidos", value: n(mine.byStatus.LOST), status: "LOST", href: leadsHref({ status: "LOST" }) },
-      { label: "Fila sem responsável", value: n(kpis.unassigned), href: leadsHref({ assignee: "sem" }), hint: "Leads para assumir" },
-    ];
-  }
+  const mine = kpis.byAssignee.get(context.userId) ?? EMPTY_BLOCK;
+  const MY_LABELS: Record<LeadStatus, string> = { NEW: "Meus novos", CONTACTED: "Meus contatados", IN_PROGRESS: "Em atendimento", WON: "Ganhos", LOST: "Perdidos" };
+  const statusRows: StatusRow[] = LEAD_STATUSES.map((status) => ({
+    status,
+    label: manager ? STATUS_LABELS[status] : MY_LABELS[status],
+    value: manager ? kpis.byStatus[status] : mine.byStatus[status],
+    href: leadsHref({ status }),
+  }));
 
   // Equipe: SDRs ativos + quem tem leads atribuídos no período (ordem alfabética, sem ranking).
   const teamRows = manager
     ? distinctMembers(team, filters.storeId).filter((m) => (m.role === "STORE_USER" && m.isActive) || kpis.byAssignee.has(m.userId))
     : [];
+  const firstName = context.fullName?.trim().split(/\s+/)[0];
 
   return (
     <>
       <PageHeader
+        eyebrow={firstName ? `Olá, ${firstName}` : undefined}
         title="Dashboard"
         description={`${manager ? "Visão da equipe" : "Meus leads"} · ${PERIOD_LABELS[filters.period]}`}
       />
@@ -121,70 +156,134 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
         showStatus={false}
       />
 
-      <KpiCards cards={cards} label={manager ? "Indicadores da loja" : "Meus indicadores"} />
+      <section aria-label={manager ? "Indicadores da loja" : "Meus indicadores"} className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+          {manager ? (
+            <HeroStat label="Leads recebidos" value={kpis.total} href={leadsHref({ assignee: "todos" })} cta="Ver leads" />
+          ) : (
+            <HeroStat label="Meus leads" value={mine.total} href={leadsHref({ assignee: "meus" })} cta="Ver meus leads" />
+          )}
+          <QueueStat
+            label={manager ? "Sem responsável" : "Fila sem responsável"}
+            value={kpis.unassigned}
+            href={leadsHref({ assignee: "sem" })}
+            hint={manager ? "Distribuir" : "Leads para assumir"}
+          />
+        </div>
+        <div className="lg:col-span-2">
+          <StatusBreakdown title={manager ? "Leads por status" : "Meus leads por status"} rows={statusRows} />
+        </div>
+      </section>
 
       {manager ? (
-        <Card className="mt-6">
-          <CardHeader title="Equipe" description="Leads de cada SDR no período." />
+        <Card className="mt-6 overflow-hidden">
+          <CardHeader icon={<Users />} title="Equipe" description="Leads de cada SDR no período." />
           {teamRows.length === 0 ? (
-            <p className="px-5 pb-5 text-sm text-muted">Nenhum SDR com leads no período.</p>
+            <p className="px-5 py-6 text-sm text-muted">Nenhum SDR com leads no período.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-line bg-background/60 text-xs uppercase tracking-wide text-muted">
-                  <tr>
-                    <th scope="col" className="px-4 py-3 font-semibold">SDR</th>
-                    <th scope="col" className="px-4 py-3 text-right font-semibold">Atribuídos</th>
-                    {LEAD_STATUSES.map((status) => (
-                      <th key={status} scope="col" className="px-4 py-3 text-right font-semibold">
-                        {STATUS_LABELS[status]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {teamRows.map((member) => {
-                    const block = kpis.byAssignee.get(member.userId) ?? EMPTY_BLOCK;
-                    return (
-                      <tr key={member.userId}>
-                        <th scope="row" className="whitespace-nowrap px-4 py-3 font-semibold">
-                          <Link href={leadsHref({ assignee: member.userId })} className="hover:text-accent hover:underline">
-                            {member.fullName}
-                          </Link>
-                          {member.isActive ? null : <span className="ml-1 font-normal text-muted">(inativo)</span>}
+            <>
+              <div className="hidden md:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-line bg-surface-muted text-[11px] uppercase tracking-[0.06em] text-muted">
+                    <tr>
+                      <th scope="col" className="py-3 pl-5 pr-4 font-semibold">SDR</th>
+                      <th scope="col" className="px-4 py-3 text-right font-semibold">Atribuídos</th>
+                      {LEAD_STATUSES.map((status) => (
+                        <th key={status} scope="col" className="px-4 py-3 text-right font-semibold">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span aria-hidden="true" className={`size-1.5 rounded-full ${STATUS_DOTS[status]}`} />
+                            {STATUS_LABELS[status]}
+                          </span>
                         </th>
-                        <td className="px-4 py-3 text-right tabular-nums">{n(block.total)}</td>
-                        {LEAD_STATUSES.map((status) => (
-                          <td key={status} className="px-4 py-3 text-right tabular-nums">
-                            {n(block.byStatus[status])}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                  <tr className="text-muted">
-                    <th scope="row" className="px-4 py-3 font-medium">
-                      <Link href={leadsHref({ assignee: "sem" })} className="hover:text-accent hover:underline">
-                        Sem responsável
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {teamRows.map((member) => {
+                      const block = kpis.byAssignee.get(member.userId) ?? EMPTY_BLOCK;
+                      return (
+                        <tr key={member.userId} className="hover:bg-surface-muted/70">
+                          <th scope="row" className="py-3 pl-5 pr-4 font-semibold">
+                            <Link href={leadsHref({ assignee: member.userId })} className="inline-flex items-center gap-3 hover:text-accent">
+                              <Avatar name={member.fullName} size="sm" />
+                              {member.fullName}
+                              {member.isActive ? null : <span className="font-normal text-muted">(inativo)</span>}
+                            </Link>
+                          </th>
+                          <td className="px-4 py-3 text-right text-[15px] font-semibold tabular-nums">{n(block.total)}</td>
+                          {LEAD_STATUSES.map((status) => (
+                            <td key={status} className={`px-4 py-3 text-right tabular-nums ${block.byStatus[status] ? "" : "text-line-strong"}`}>
+                              {n(block.byStatus[status])}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                    <tr className="bg-surface-muted/50">
+                      <th scope="row" className="py-3 pl-5 pr-4 font-medium text-muted">
+                        <Link href={leadsHref({ assignee: "sem" })} className="inline-flex items-center gap-3 hover:text-accent">
+                          <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-line-strong">
+                            <UserRoundX className="size-4" />
+                          </span>
+                          Sem responsável
+                        </Link>
+                      </th>
+                      <td className="px-4 py-3 text-right text-[15px] font-semibold tabular-nums">{n(kpis.unassigned)}</td>
+                      <td colSpan={LEAD_STATUSES.length} />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <ul className="divide-y divide-line md:hidden">
+                {teamRows.map((member) => {
+                  const block = kpis.byAssignee.get(member.userId) ?? EMPTY_BLOCK;
+                  return (
+                    <li key={member.userId}>
+                      <Link href={leadsHref({ assignee: member.userId })} className="block px-4 py-3.5 active:bg-surface-muted">
+                        <span className="flex items-center gap-3">
+                          <Avatar name={member.fullName} size="sm" />
+                          <span className="min-w-0 flex-1 truncate font-semibold">
+                            {member.fullName}
+                            {member.isActive ? null : <span className="font-normal text-muted"> (inativo)</span>}
+                          </span>
+                          <span className="text-lg font-semibold tabular-nums">{n(block.total)}</span>
+                        </span>
+                        <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 pl-11 text-[13px] text-muted">
+                          {LEAD_STATUSES.map((status) => (
+                            <span key={status} className="inline-flex items-center gap-1.5">
+                              <span aria-hidden="true" className={`size-1.5 rounded-full ${STATUS_DOTS[status]}`} />
+                              {STATUS_LABELS[status]} <span className="font-semibold text-foreground tabular-nums">{n(block.byStatus[status])}</span>
+                            </span>
+                          ))}
+                        </span>
                       </Link>
-                    </th>
-                    <td className="px-4 py-3 text-right tabular-nums">{n(kpis.unassigned)}</td>
-                    <td colSpan={LEAD_STATUSES.length} />
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    </li>
+                  );
+                })}
+                <li>
+                  <Link href={leadsHref({ assignee: "sem" })} className="flex items-center gap-3 px-4 py-3.5 text-muted active:bg-surface-muted">
+                    <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-line-strong">
+                      <UserRoundX className="size-4" />
+                    </span>
+                    <span className="flex-1 font-medium">Sem responsável</span>
+                    <span className="text-lg font-semibold tabular-nums text-foreground">{n(kpis.unassigned)}</span>
+                  </Link>
+                </li>
+              </ul>
+            </>
           )}
         </Card>
       ) : null}
 
-      <Card className="mt-6">
+      <Card className="mt-6 overflow-hidden">
         <CardHeader
+          icon={<Inbox />}
           title={manager ? "Leads mais recentes" : "Meus leads mais recentes"}
-          description="Os 10 últimos do período"
           action={
             <Link href={leadsHref({})} className={buttonClasses({ variant: "secondary", size: "sm" })}>
               Ver todos
+              <ArrowRight aria-hidden="true" className="size-4" />
             </Link>
           }
         />

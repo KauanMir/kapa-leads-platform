@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 const control =
-  "block w-full rounded-lg border border-line-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted/80 " +
+  "block w-full rounded-xl border border-line-strong bg-surface px-3 text-[15px] text-foreground shadow-sm placeholder:text-muted/80 " +
   "disabled:bg-background disabled:text-muted aria-[invalid=true]:border-danger";
 
 export function Label({ className = "", ...props }: LabelHTMLAttributes<HTMLLabelElement>) {

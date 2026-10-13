@@ -24,7 +24,9 @@ export function NoteForm({ leadId }: { leadId: string }) {
 
   return (
     <form ref={formRef} action={action} onReset={() => setLength(0)} className="flex flex-col gap-2">
-      <Label htmlFor="note-body">Adicionar observação</Label>
+      <Label htmlFor="note-body" className="sr-only">
+        Adicionar observação
+      </Label>
       <Textarea
         id="note-body"
         name="body"
@@ -34,13 +36,16 @@ export function NoteForm({ leadId }: { leadId: string }) {
         onChange={(event) => setLength(event.target.value.length)}
         aria-invalid={error ? true : undefined}
         aria-describedby="note-body-help"
-        placeholder="Ex.: Cliente pediu retorno às 15h."
+        placeholder="Escreva uma observação… Ex.: cliente pediu retorno às 15h."
+        className="resize-y bg-surface-muted focus:bg-surface"
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p id="note-body-help" className="text-sm text-muted">
-          {length}/{MAX} caracteres. Observações não podem ser editadas depois.
+        <p id="note-body-help" className="text-[13px] text-muted">
+          {length > MAX - 500 ? `${length}/${MAX} · ` : null}Não pode ser editada depois.
         </p>
-        <SubmitButton pendingLabel="Adicionando…">ADICIONAR</SubmitButton>
+        <SubmitButton pendingLabel="Salvando…" size="sm">
+          Salvar observação
+        </SubmitButton>
       </div>
       <FieldError>{error}</FieldError>
       {state?.ok ? (

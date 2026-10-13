@@ -1,34 +1,66 @@
 import { ArrowRightLeft, Eye, Inbox, MessageSquareText, Sparkles, UserCheck } from "lucide-react";
 
 import type { TimelineItem } from "@/lib/admin/timeline";
-import { formatDateTime } from "@/lib/format/datetime";
+import { formatDateTime, formatDayLabel, formatTime } from "@/lib/format/datetime";
 
-const ICONS = { created: Inbox, status: ArrowRightLeft, note: MessageSquareText, assigned: UserCheck, audit: Eye, event: Sparkles };
+const KINDS = {
+  created: { icon: Inbox, tone: "bg-blue-50 text-blue-600 ring-blue-100" },
+  status: { icon: ArrowRightLeft, tone: "bg-violet-50 text-violet-600 ring-violet-100" },
+  note: { icon: MessageSquareText, tone: "bg-amber-50 text-amber-600 ring-amber-100" },
+  assigned: { icon: UserCheck, tone: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+  audit: { icon: Eye, tone: "bg-slate-100 text-slate-500 ring-slate-200" },
+  event: { icon: Sparkles, tone: "bg-slate-100 text-slate-500 ring-slate-200" },
+};
 
+/** Histórico do lead: mais recente primeiro, agrupado por dia. */
 export function Timeline({ items }: { items: TimelineItem[] }) {
   if (items.length === 0) return <p className="text-sm text-muted">Sem histórico.</p>;
 
+  const now = new Date();
+  const groups: Array<{ label: string; items: TimelineItem[] }> = [];
+  for (const item of [...items].reverse()) {
+    const label = formatDayLabel(item.at, now);
+    const last = groups.at(-1);
+    if (last?.label === label) last.items.push(item);
+    else groups.push({ label, items: [item] });
+  }
+
   return (
-    <ol className="relative flex flex-col gap-5 border-l border-line pl-6">
-      {items.map((item) => {
-        const Icon = ICONS[item.kind];
-        return (
-          <li key={item.key} className="relative">
-            <span className="absolute -left-[37px] flex size-6 items-center justify-center rounded-full border border-line bg-surface">
-              <Icon aria-hidden="true" className="size-3.5 text-muted" />
-            </span>
-            <p className="text-sm text-muted">
-              <time dateTime={item.at} className="tabular-nums">
-                {formatDateTime(item.at)}
-              </time>
-              {item.actor ? <> · {item.actor}</> : null}
-            </p>
-            <p className="font-medium">{item.title}</p>
-            {/* Texto puro: o React escapa o conteúdo (sem HTML). */}
-            {item.body ? <p className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-background px-3 py-2">{item.body}</p> : null}
-          </li>
-        );
-      })}
-    </ol>
+    <div className="flex flex-col gap-5">
+      {groups.map((group) => (
+        <section key={group.label} aria-label={group.label}>
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{group.label}</p>
+          <ol className="flex flex-col">
+            {group.items.map((item, index) => {
+              const { icon: Icon, tone } = KINDS[item.kind];
+              const isLast = index === group.items.length - 1;
+              return (
+                <li key={item.key} className="relative flex gap-3 pb-4 last:pb-0">
+                  {isLast ? null : <span aria-hidden="true" className="absolute bottom-0 left-[15px] top-9 w-px bg-line" />}
+                  <span aria-hidden="true" className={`relative flex size-8 shrink-0 items-center justify-center rounded-full ring-1 ${tone}`}>
+                    <Icon className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1 pt-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <p className="text-[15px] font-semibold leading-snug">{item.title}</p>
+                      <time dateTime={item.at} title={formatDateTime(item.at)} className="text-xs tabular-nums text-muted">
+                        {formatTime(item.at)}
+                      </time>
+                    </div>
+                    {item.actor ? <p className="text-[13px] text-muted">{item.actor}</p> : null}
+                    {/* Texto puro: o React escapa o conteúdo (sem HTML). */}
+                    {item.body ? (
+                      <p className="mt-2 whitespace-pre-wrap break-words rounded-xl rounded-tl-sm border border-amber-100 bg-amber-50/60 px-3.5 py-2.5 text-[15px]">
+                        {item.body}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ))}
+    </div>
   );
 }
