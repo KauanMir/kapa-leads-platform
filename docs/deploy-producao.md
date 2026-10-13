@@ -9,7 +9,7 @@ Os itens marcados com ⏳ dependem de decisões ainda em aberto.
 |---|---|
 | Hospedagem | **Vercel**, time `kauan-s-projects3`, projetos `kapa-leads-platform` e `duelo-de-aprovacoes` (ligados ao GitHub, deploy de produção pela `main`). Plano **Hobby** durante o desenvolvimento; **upgrade do mesmo time para Pro antes da campanha operar de verdade** (o Hobby não permite uso comercial). Sem Cloudflare/OpenNext nesta fase. |
 | Domínio da plataforma | `https://leads.assessoriakapa.com.br` |
-| Domínio da LP | ⏳ `https://duelo.vitrineveiculos.com.br` (preferência) ou `https://duelo.assessoriakapa.com.br` |
+| Domínio da LP | `https://duelo.assessoriakapa.com.br` (em uso). Migrar para `https://duelo.vitrineveiculos.com.br` **só com autorização explícita**, quando o projeto estiver pronto (ver seção 3). |
 | Supabase | O projeto atual é **PRODUÇÃO** (região São Paulo). Testes remotos bloqueados nele (seção 8). |
 | Região das funções | `gru1` (São Paulo, junto do banco) — `vercel.json`. A LP é estática. |
 | Política de Privacidade | `https://assessoriakapa.com.br/privacidade` (em revisão antes do tráfego real) |
@@ -56,7 +56,10 @@ O `next build` da LP falha se faltar qualquer uma, se a API não for `https` só
 
 | Host | Tipo | Valor |
 |---|---|---|
-| `leads.assessoriakapa.com.br` | CNAME | `25dd0ce7240afe36.vercel-dns-017.com.` (valor do projeto na Vercel; conferir com `vercel domains verify`) |
+| `leads.assessoriakapa.com.br` | CNAME | `25dd0ce7240afe36.vercel-dns-017.com.` (projeto `kapa-leads-platform`) |
+| `duelo.assessoriakapa.com.br` | CNAME | `51aff8f98ba9df30.vercel-dns-017.com.` (projeto `duelo-de-aprovacoes`) |
+
+Valores conferíveis com `vercel domains verify <domínio>`. HTTPS (Let's Encrypt) emitido pela Vercel; `http` → `https` (308).
 
 ## 2. Supabase Auth (Dashboard → Authentication → URL Configuration)
 
@@ -65,22 +68,31 @@ importam para e-mails enviados pelo próprio Supabase (convite / redefinição p
 antes do go-live:
 
 - **Site URL:** `https://leads.assessoriakapa.com.br`
-- **Redirect URLs:** `https://leads.assessoriakapa.com.br/**`. Remover `http://localhost:3000/**`: este projeto é
-  produção; o desenvolvimento vai para um projeto Supabase separado (seção 8).
+- **Redirect URLs:** `https://leads.assessoriakapa.com.br/**` e, por enquanto, `http://localhost:3000/**` (mantido
+  para desenvolvimento enquanto não existe o Supabase separado da seção 8; remover quando ele existir).
+
+Configurado em 13/10/2026.
 
 Sessão: cookies `sb-<ref>-auth-token` com `HttpOnly`, `SameSite=Lax` e, em produção, `Secure` (conferido no
 `next start`). Exigem HTTPS no domínio da plataforma.
 
-## 3. Origens permitidas da campanha Duelo ⏳
+## 3. Origens permitidas da campanha Duelo
 
-Hoje `allowed_origins` está **vazio** (a LP em produção recebe 403 até o cadastro). Quando o domínio da LP existir:
+Hoje: `allowed_origins = ['https://duelo.assessoriakapa.com.br']` (13/10/2026). Origens fora da lista recebem 403
+(conferido: `*.vercel.app` e `localhost`). `localhost` nunca entra aqui; no desenvolvimento local usar
+`PUBLIC_LEADS_DEV_ORIGINS`, ignorada em produção.
+
+Ao migrar para o domínio da Vitrine (com autorização): adicionar a nova origem **antes** de trocar o domínio da LP e
+remover a antiga só depois do teste.
 
 - Admin → Campanhas → Duelo de Aprovações → Origens permitidas.
 - Cadastrar **somente** a origem `https://<domínio-da-lp>`; a variação com `www` só se ela realmente servir a LP
   (se `www` redireciona para o domínio sem `www`, não precisa).
 - O formulário recusa `http` (exceto localhost), caminho e curinga (`*`).
 
-## 4. Páginas públicas que precisam existir antes do tráfego real ⏳
+## 4. Páginas públicas que precisam existir antes do tráfego real
+
+Publicadas (HTTP 200 em 13/10/2026); revisão jurídica do texto ainda pendente antes do tráfego pago.
 
 1. **Política de Privacidade** (HTTPS) → `NEXT_PUBLIC_PRIVACY_POLICY_URL`. Linkada no checkbox de consentimento e no
    rodapé. O texto deve corresponder ao consentimento versão `2026-10-v1`; se o texto do checkbox mudar, criar nova
@@ -115,13 +127,19 @@ Páginas do Admin: `Cache-Control: private, no-store`. HSTS fica com o provedor/
 
 ## 7. Ordem sugerida do go-live
 
-1. Publicar Política de Privacidade e Termos de Uso.
-2. Deploy da plataforma com as variáveis da seção 1 → testar login no domínio final.
-3. Supabase Auth: Site URL / Redirect URLs (seção 2).
-4. Deploy da LP com as variáveis da seção 1.
-5. Cadastrar a origem da LP na campanha (seção 3).
-6. Teste real: simular na LP de produção → lead aparece no Admin; repetir o envio (200 idempotente, sem duplicar).
-7. Só então apagar o lead "TESTE Demonstracao KAPA (pode apagar)" e liberar o tráfego pago.
+Situação em 13/10/2026 (✅ feito, ⏳ pendente):
+
+1. ✅ Publicar Política de Privacidade e Termos de Uso (⏳ revisão jurídica do texto).
+2. ✅ Deploy da plataforma com as variáveis da seção 1. ⏳ Login no domínio final com um usuário real (feito pelo
+   responsável, no navegador).
+3. ✅ Supabase Auth: Site URL / Redirect URLs (seção 2).
+4. ✅ Deploy da LP com as variáveis da seção 1.
+5. ✅ Cadastrar a origem da LP na campanha (seção 3).
+6. ✅ Teste real pela LP de produção: lead "TESTE Fase 7 (pode apagar)" gravado (201) com formData, UTMs,
+   `page_url`, `referrer`, consentimento e evento `CREATED`; reenvio do mesmo payload → 200 com o mesmo `leadId`,
+   sem duplicar. ⏳ Conferir esse lead no Admin.
+7. ⏳ Upgrade do time da Vercel para Pro, apagar os leads "TESTE Demonstracao KAPA (pode apagar)" e
+   "TESTE Fase 7 (pode apagar)" e só então liberar o tráfego pago.
 
 ## 8. Supabase de desenvolvimento/testes (pendente)
 
