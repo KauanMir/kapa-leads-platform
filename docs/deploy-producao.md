@@ -137,7 +137,9 @@ Situação em 13/10/2026 (✅ feito, ⏳ pendente). Fluxo diário dos usuários:
 5. ✅ Supabase DEV separado (`kapa-leads-platform-dev`); `.env.local` e Vercel Preview/Development no DEV
    ([ambientes.md](ambientes.md)).
 6. ✅ Suítes remotas verdes no DEV (RLS 22, API 9, Admin 23, E2E 13) e teste LP local → API → DEV.
-7. ⏳ `npm run db:compare` (DEV x produção, item a item) e `npm run prod:check` com o CLI enxergando as duas contas.
+7. ✅ `npm run db:compare`: DEV e produção com a mesma estrutura (400 itens). `npm run prod:check`: 0 leads,
+   SUPER_ADMIN ativo, Vitrine e Duelo ativas, nenhuma loja de teste. (O CLI enxerga as duas contas: a conta de produção
+   é Developer na organização do DEV.)
 8. ⏳ Remover `http://localhost:3000/**` das Redirect URLs do projeto de produção (seção 2).
 
 **Pessoas**

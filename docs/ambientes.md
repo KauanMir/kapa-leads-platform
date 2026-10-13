@@ -79,6 +79,7 @@ Os três últimos usam `supabase db query` (Management API, login do CLI): sem s
 O login do CLI precisa enxergar o projeto consultado: `dev:setup` precisa do DEV; `prod:check` precisa da produção;
 `db:compare` precisa dos dois. Como DEV e produção estão em contas Supabase diferentes, a conta logada no CLI tem
 que ser membro das duas organizações (papel **Developer** basta; nunca dar acesso à produção a quem não precisa).
+Hoje: o CLI fica logado na conta de produção, que é **Developer** na organização do DEV.
 
 ## 5. LP em Preview
 
