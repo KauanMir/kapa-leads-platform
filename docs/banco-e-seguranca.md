@@ -37,23 +37,25 @@ RLS é habilitado explicitamente em todas as tabelas pelas migrations.
 | Quem | Acesso |
 |---|---|
 | `anon` (sem login) | Nenhum. |
-| `STORE_USER` (SDR) | Lê loja, campanhas, leads, notas e eventos **das próprias lojas** (exceto `CPF_REVEALED`). Altera só `leads.status`. Cria notas. Assume para si lead **sem responsável**. Revela CPF (auditado). |
-| `STORE_ADMIN` (gerente) | Igual ao STORE_USER + lê membros e perfis dos membros das próprias lojas, vê `CPF_REVEALED`, atribui/reatribui/devolve leads para membros ativos da loja. |
+| `STORE_USER` (SDR) | Lê loja, campanhas, leads, notas e eventos **das próprias lojas** (exceto `CPF_REVEALED`). **Só nos leads em que é o responsável:** altera `leads.status`, cria notas e revela CPF (auditado). Assume para si lead **sem responsável**. |
+| `STORE_ADMIN` (gerente) | Lê tudo da própria loja + membros e perfis dos membros; vê `CPF_REVEALED`; altera status, cria notas e revela CPF de **qualquer** lead da loja; atribui/reatribui/devolve leads para membros ativos da loja. |
 | `SUPER_ADMIN` | Lê tudo. Cria/edita lojas, campanhas e vínculos. Atribui em qualquer loja (só para membros daquela loja). |
 | `service_role` (chave secreta, só servidor) | Ignora RLS. Usado pela API pública (Fase 3). |
 
-**CPF:** usuários autenticados **não** têm `SELECT` na coluna `leads.cpf`, apenas em `cpf_masked` (`***.456.789-**`). Por isso, consultas a `leads` precisam listar as colunas (`select=*` falha). O CPF completo sai **só** por `reveal_lead_cpf(lead)`: confere usuário ativo + acesso à loja do lead, grava `CPF_REVEALED` (sem o CPF) e devolve o CPF daquele lead. CPF nunca vai em URL, query string, log ou HTML inicial.
+**CPF:** usuários autenticados **não** têm `SELECT` na coluna `leads.cpf`, apenas em `cpf_masked` (`***.456.789-**`). Por isso, consultas a `leads` precisam listar as colunas (`select=*` falha). O CPF completo sai **só** por `reveal_lead_cpf(lead)`: confere usuário ativo + loja do lead + `private.can_work_lead` (SDR só se for o responsável), grava `CPF_REVEALED` (sem o CPF) e devolve o CPF daquele lead. CPF nunca vai em URL, query string, log ou HTML inicial.
 
 **Funções da Fase 9** (`public`, `EXECUTE` só para `authenticated`):
 
 | Função | Tipo | O que faz |
 |---|---|---|
 | `assign_lead(lead, usuário | null)` | SECURITY DEFINER | Atribui/reatribui/devolve (gerente/KAPA) ou assume para si um lead sem responsável (SDR). Trava a linha (`FOR UPDATE`): dois SDRs não assumem o mesmo lead. |
-| `reveal_lead_cpf(lead)` | SECURITY DEFINER | CPF de um lead + evento `CPF_REVEALED`. |
+| `reveal_lead_cpf(lead)` | SECURITY DEFINER | CPF de um lead + evento `CPF_REVEALED`. Fora da loja: `KL010`; SDR que não é o responsável: `KL011`. |
+| `private.can_work_lead(lead)` | SECURITY DEFINER (privada) | Regra única de quem TRABALHA o lead: KAPA, gerente da loja, ou o SDR responsável. Usada pela policy de `lead_notes` e por `reveal_lead_cpf`; a policy `leads_update` aplica a mesma regra direto na linha. |
 | `store_team()` | SECURITY DEFINER | Nome, papel e se está ativo dos membros das lojas do usuário (sem e-mail). O RLS de `profiles` continua restrito. |
 | `lead_kpis(loja, campanha, de, até)` | SECURITY INVOKER | Contagens por (responsável, status) + tempo até o 1º atendimento. Usa o RLS do usuário; SDR só agrega os próprios leads e a fila. |
 
-`leads.assigned_to` não tem `GRANT UPDATE` para `authenticated`: um `UPDATE` direto é negado. Rollback da Fase 9:
+`leads.assigned_to` não tem `GRANT UPDATE` para `authenticated`: um `UPDATE` direto é negado. Policies trocadas pela
+Fase 9: `leads_update` e `lead_notes_insert` (SDR só no próprio lead) e `lead_events_select` (`CPF_REVEALED` só gerente/KAPA). Rollback da Fase 9:
 `supabase/rollbacks/20261014120000_lead_assignment_cpf_kpis.down.sql`.
 
 Usuários/vínculos inativos (`profiles.is_active`, `store_members.is_active`) perdem acesso. Loja inativa bloqueia novos leads, mas os membros continuam vendo o histórico.

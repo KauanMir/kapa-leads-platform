@@ -251,11 +251,17 @@ describe("detalhe do lead e CPF", () => {
 });
 
 describe("status e observações", () => {
+  it("SDR sem ser o responsável não altera status nem observa; depois de assumir, sim", async () => {
+    expect(await updateLeadStatus(users.userA.db, leadA1.id, "CONTACTED")).toBe(false);
+    expect(await addLeadNote(users.userA.db, leadA1.id, "antes de assumir")).toEqual({ ok: false, reason: "forbidden" });
+    expect(await assignLead(users.userA.db, leadA1.id, users.userA.id)).toEqual({ ok: true });
+  });
+
   it("status pode ser alterado na própria loja (gera STATUS_CHANGED)", async () => {
     expect(await updateLeadStatus(users.userA.db, leadA1.id, "CONTACTED")).toBe(true);
     const { events } = await getLeadHistory(users.userA.db, leadA1.id);
-    expect(events.map((e) => e.type)).toEqual(["CREATED", "STATUS_CHANGED"]);
-    expect(events[1].actor_id).toBe(users.userA.id);
+    expect(events.map((e) => e.type)).toEqual(["CREATED", "ASSIGNED", "STATUS_CHANGED"]);
+    expect(events[2].actor_id).toBe(users.userA.id);
   });
 
   it("status de lead de outra loja não pode ser alterado", async () => {
@@ -274,8 +280,8 @@ describe("status e observações", () => {
     expect(history.notes[0]).toMatchObject({ body: "Cliente pediu retorno às 15h.", author_id: users.userA.id });
 
     const timeline = buildTimeline(history.events, history.notes, users.userA.id);
-    expect(timeline.map((i) => i.kind)).toEqual(["created", "status", "note"]);
-    expect(timeline[2].actor).toBe("Você");
+    expect(timeline.map((i) => i.kind)).toEqual(["created", "assigned", "status", "note"]);
+    expect(timeline[3].actor).toBe("Você");
   });
 
   it("nota não pode ser adicionada em lead de outra loja", async () => {
@@ -331,6 +337,7 @@ describe("fluxo de atendimento (vendedor STORE_USER)", () => {
     const db = users.userA.db;
 
     expect((await getLeadDetail(db, lead))?.status).toBe("NEW");
+    expect(await assignLead(db, lead, users.userA.id)).toEqual({ ok: true });
     expect(await updateLeadStatus(db, lead, "CONTACTED")).toBe(true);
     expect((await addLeadNote(db, lead, "Primeiro contato pelo WhatsApp.")).ok).toBe(true);
     expect(await updateLeadStatus(db, lead, "IN_PROGRESS")).toBe(true);
@@ -339,18 +346,19 @@ describe("fluxo de atendimento (vendedor STORE_USER)", () => {
 
     expect((await getLeadDetail(db, lead))?.status).toBe("WON");
     const history = await getLeadHistory(db, lead);
-    expect(history.events.map((e) => e.type)).toEqual(["CREATED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED"]);
+    expect(history.events.map((e) => e.type)).toEqual(["CREATED", "ASSIGNED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED"]);
     expect(statusTrail(history.events)).toEqual(["CONTACTED", "IN_PROGRESS", "WON"]);
     expect(history.notes.map((n) => n.body)).toEqual(["Primeiro contato pelo WhatsApp.", "Cliente vem à loja no sábado."]);
     expect(history.events.filter((e) => e.type !== "CREATED").every((e) => e.actor_id === users.userA.id)).toBe(true);
 
     const timeline = buildTimeline(history.events, history.notes, users.userA.id);
-    expect(timeline.map((i) => i.kind)).toEqual(["created", "status", "note", "status", "note", "status"]);
+    expect(timeline.map((i) => i.kind)).toEqual(["created", "assigned", "status", "note", "status", "note", "status"]);
   });
 
   it("Novo → Contatado → Perdido, com observação do motivo", async () => {
     const lead = (await insertLead(campaignA, "Elisa Fluxo Perdido", "11987650005")).id;
     const db = users.userA.db;
+    expect(await assignLead(db, lead, users.userA.id)).toEqual({ ok: true });
 
     expect(await updateLeadStatus(db, lead, "CONTACTED")).toBe(true);
     expect((await addLeadNote(db, lead, "Cliente desistiu: comprou em outra loja.")).ok).toBe(true);
@@ -358,7 +366,7 @@ describe("fluxo de atendimento (vendedor STORE_USER)", () => {
 
     const history = await getLeadHistory(db, lead);
     expect(statusTrail(history.events)).toEqual(["CONTACTED", "LOST"]);
-    expect(history.events.map((e) => e.type)).toEqual(["CREATED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED"]);
+    expect(history.events.map((e) => e.type)).toEqual(["CREATED", "ASSIGNED", "STATUS_CHANGED", "NOTE_ADDED", "STATUS_CHANGED"]);
 
     const counts = await getDashboardCounts(db, {});
     expect(counts).toMatchObject({ WON: 1, LOST: 1 });
@@ -367,12 +375,13 @@ describe("fluxo de atendimento (vendedor STORE_USER)", () => {
 
 describe("operação SDR (camada de dados da Fase 9)", () => {
   it("SDR assume lead da fila; filtros Meus leads / Sem responsável", async () => {
+    const queueBefore = await listLeads(users.userA.db, { unassigned: true });
+    expect(queueBefore.rows.map((r) => r.id)).toContain(leadA2);
     expect(await assignLead(users.userA.db, leadA2, users.userA.id)).toEqual({ ok: true });
     const mine = await listLeads(users.userA.db, { assignedTo: users.userA.id });
-    expect(mine.rows.map((r) => r.id)).toEqual([leadA2]);
-    expect(mine.rows[0].assignedTo).toBe(users.userA.id);
+    expect(mine.rows.map((r) => r.id)).toEqual(expect.arrayContaining([leadA1.id, leadA2]));
+    expect(mine.rows.every((r) => r.assignedTo === users.userA.id)).toBe(true);
     const queue = await listLeads(users.userA.db, { unassigned: true });
-    expect(queue.rows.map((r) => r.id)).toContain(leadA1.id);
     expect(queue.rows.map((r) => r.id)).not.toContain(leadA2);
   });
 
@@ -391,9 +400,11 @@ describe("operação SDR (camada de dados da Fase 9)", () => {
     expect(titles).toContain("Lead assumido por você");
   });
 
-  it("CPF: revelado só na própria loja", async () => {
+  it("CPF: SDR só no próprio lead; outra loja nunca", async () => {
     expect((await revealLeadCpf(users.userA.db, leadA1.id)) === leadA1.cpf).toBe(true);
     expect(await revealLeadCpf(users.adminB.db, leadA1.id)).toBeNull();
+    const queued = (await insertLead(campaignA, "Fila CPF", "11987650006")).id;
+    expect(await revealLeadCpf(users.userA.db, queued)).toBeNull();
     // Booleano: uma falha não imprime o CPF.
     expect(/^\d{11}$/.test((await revealLeadCpf(users.superAdmin.db, leadB1)) ?? "")).toBe(true);
   });
@@ -406,6 +417,8 @@ describe("operação SDR (camada de dados da Fase 9)", () => {
 
     const sdr = summarizeKpis(await getLeadKpis(users.userA.db, { storeId: storeA }));
     expect([...sdr.byAssignee.keys()]).toEqual([users.userA.id]);
-    expect(sdr.byAssignee.get(users.userA.id)?.total).toBe(1);
+    const mine = await listLeads(users.userA.db, { storeId: storeA, assignedTo: users.userA.id });
+    expect(sdr.byAssignee.get(users.userA.id)?.total).toBe(mine.total);
+    expect(sdr.byAssignee.get(users.userA.id)?.byStatus).toMatchObject({ WON: 1, LOST: 1 });
   });
 });

@@ -20,7 +20,7 @@ Lead chega da LP (Novo, sem responsável)
 |---|---|---|
 | **KAPA** | SUPER_ADMIN | Vê e configura tudo: lojas, campanhas, usuários e leads de todas as lojas. |
 | **Gerente** | STORE_ADMIN | Supervisiona a loja: vê todos os leads, distribui para os SDRs, vê a equipe e os KPIs da equipe. |
-| **SDR** | STORE_USER | Atende os leads: assume da fila, liga/WhatsApp, muda status, registra observações e repassa ao vendedor. |
+| **SDR** | STORE_USER | Atende os **próprios** leads: assume da fila, liga/WhatsApp, muda status, registra observações, vê o CPF e repassa ao vendedor. |
 
 O banco continua usando `STORE_USER`; "SDR" é só o nome na tela. Nenhum usuário de loja vira SUPER_ADMIN. Quem cria
 usuários, lojas e campanhas é sempre a KAPA.
@@ -63,6 +63,17 @@ Usuário ou vínculo desativado não assume nem recebe leads. Se um SDR sair, o 
 
 **Como atribuir (gerente):** abra o lead → **Responsável pelo lead** → escolha o SDR. Salva na hora.
 **Como assumir (SDR):** abra o lead da fila → **ASSUMIR LEAD**.
+
+**O responsável vale de verdade** (regra no banco, não só na tela):
+
+| Para o SDR | Ver | Assumir | Status / observação / CPF / ligar / resumo |
+|---|---|---|---|
+| Lead **dele** | ✅ | — | ✅ |
+| Lead **sem responsável** | ✅ | ✅ | ❌ — assume primeiro |
+| Lead de **outro SDR** | ✅ (com o nome de quem atende) | ❌ | ❌ — "Este lead está sendo atendido por Maria." |
+
+O **gerente** trabalha qualquer lead da própria loja (status, observação, CPF) e atribui/reatribui/devolve. A **KAPA**
+trabalha qualquer lead.
 
 ## 5. Filas e filtros
 
@@ -115,11 +126,14 @@ Vendedores não são cadastrados na plataforma nesta fase: o nome do vendedor fi
 ## 8. CPF e auditoria
 
 - O CPF aparece **mascarado** (`***.456.789-**`). O completo nunca está na página, na lista, na busca ou na URL.
-- **REVELAR CPF** (SDR, gerente e KAPA da loja do lead) busca o CPF no banco **naquele momento**. Ele fica visível
-  por 1 minuto (ou até **Ocultar**) e pode ser copiado.
+- **REVELAR CPF** busca o CPF no banco **naquele momento**. Ele fica visível por 1 minuto (ou até **Ocultar**) e
+  pode ser copiado. Quem pode:
+  - **SDR:** só no lead em que **ele é o responsável** (lead da fila: assumir antes);
+  - **gerente:** qualquer lead da própria loja;
+  - **KAPA:** qualquer lead.
 - **Toda** revelação fica registrada (`CPF_REVEALED`: lead, quem, quando — sem o CPF). Na linha do tempo aparece
   "CPF visualizado · Maria SDR" **só para o gerente e a KAPA**; o SDR não vê a auditoria.
-- Usuário de outra loja ou desativado não revela (o banco recusa e não registra nada).
+- SDR que não é o responsável, usuário de outra loja ou desativado não revela (o banco recusa e não registra nada).
 
 ## 9. Linha do tempo
 
@@ -154,7 +168,7 @@ responsável**. O SDR não vê os números de outros SDRs (regra no banco, funç
 | Quem | Deve |
 |---|---|
 | Gerente (STORE_ADMIN) Vitrine | Entrar; ver só a Vitrine (leads, campanhas, equipe em **Minha loja**, Dashboard com **Equipe**); atribuir um lead a um SDR; **não** ver "Configurações KAPA" nem outra loja. |
-| SDR (STORE_USER) Vitrine | Entrar; cair em **Meus leads**; assumir um lead da fila; mudar status, observar, ligar/WhatsApp, copiar resumo, revelar CPF; **não** ver "Configurações KAPA", **Minha loja** nem números de outros SDRs. |
+| SDR (STORE_USER) Vitrine | Entrar; cair em **Meus leads**; assumir um lead da fila; no próprio lead: mudar status, observar, ligar/WhatsApp, copiar resumo, revelar CPF; no lead de um colega: só ver quem atende; **não** ver "Configurações KAPA", **Minha loja** nem números de outros SDRs. |
 | KAPA | Continuar vendo tudo. |
 
 As mesmas regras são cobertas automaticamente no DEV pelas suítes `test:rls` (inclui `sdr-operation`), `test:admin`

@@ -349,7 +349,8 @@ export async function assignLead(db: Db, leadId: string, assigneeId: string | nu
 export async function revealLeadCpf(db: Db, leadId: string): Promise<string | null> {
   const { data, error } = await db.rpc("reveal_lead_cpf", { p_lead_id: leadId });
   if (error) {
-    if (["KL010", "22P02", "42501"].includes(error.code)) return null;
+    // KL010: fora da loja; KL011: lead de outro SDR ou sem responsável (assumir antes).
+    if (["KL010", "KL011", "22P02", "42501"].includes(error.code)) return null;
     throw new Error(`reveal cpf failed (${error.code})`);
   }
   return typeof data === "string" ? data : null;

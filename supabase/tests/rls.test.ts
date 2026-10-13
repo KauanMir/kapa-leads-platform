@@ -374,6 +374,8 @@ describe("eventos do lead", () => {
   });
 
   it("STATUS_CHANGED é gerado só quando o status muda", async () => {
+    // Fase 9: o STORE_USER (SDR) só trabalha leads atribuídos a ele (regras em sdr-operation.test.ts).
+    unwrap(await admin.from("leads").update({ assigned_to: userA.id }).eq("id", leadA1.id).select("id"), "atribuir ao SDR");
     unwrap(
       await userA.client.from("leads").update({ status: "CONTACTED" }).eq("id", leadA1.id).select("id"),
       "mudar status",

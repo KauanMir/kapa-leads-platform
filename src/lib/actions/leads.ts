@@ -84,7 +84,7 @@ export async function revealCpfAction(id: string): Promise<ActionResult<string>>
   if (!leadId.safeParse(id).success) return { ok: false, error: "Dados inválidos." };
   const { db } = await getAdminSession();
   const cpf = await revealLeadCpf(db, id);
-  if (!cpf) return { ok: false, error: "Sem permissão para ver este CPF." };
+  if (!cpf) return { ok: false, error: "O CPF só pode ser visto pelo responsável do lead ou pelo gerente." };
   refresh();
   return { ok: true, data: cpf };
 }

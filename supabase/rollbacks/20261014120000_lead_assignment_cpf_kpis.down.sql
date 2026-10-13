@@ -18,6 +18,32 @@ drop function if exists public.assign_lead(uuid, uuid);
 drop trigger if exists log_lead_assigned on public.leads;
 drop function if exists private.log_lead_assigned();
 
+-- Policies originais da Fase 2 (qualquer membro da loja altera status e observa).
+drop policy if exists leads_update on public.leads;
+create policy leads_update on public.leads
+  for update to authenticated
+  using (
+    (select private.is_super_admin())
+    or store_id in (select private.user_store_ids())
+  )
+  with check (
+    (select private.is_super_admin())
+    or store_id in (select private.user_store_ids())
+  );
+
+drop policy if exists lead_notes_insert on public.lead_notes;
+create policy lead_notes_insert on public.lead_notes
+  for insert to authenticated
+  with check (
+    author_id = (select auth.uid())
+    and (
+      (select private.is_super_admin())
+      or store_id in (select private.user_store_ids())
+    )
+  );
+
+drop function if exists private.can_work_lead(uuid);
+
 -- Policy original da Fase 2 (todos os membros veem todos os eventos da loja).
 drop policy if exists lead_events_select on public.lead_events;
 create policy lead_events_select on public.lead_events

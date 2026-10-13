@@ -37,6 +37,13 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
   const timeline = buildTimeline(history.events, history.notes, context.userId, names);
   // Gerente da loja do lead ou KAPA: atribui/reatribui. SDR: só assume (regra no banco).
   const canManage = context.isSuperAdmin || context.stores.some((s) => s.id === lead.storeId && s.role === "STORE_ADMIN");
+  // Mesma regra do banco (private.can_work_lead): SDR só trabalha o lead atribuído a ele.
+  // A tela só esconde as ações; quem barra de fato é o RLS/funções.
+  const canWork = canManage || lead.assignedTo === context.userId;
+  const assigneeName = lead.assignedTo ? (names.get(lead.assignedTo) ?? "outro membro da equipe") : null;
+  const lockedMessage = lead.assignedTo
+    ? `Este lead está sendo atendido por ${assigneeName}.`
+    : "Assuma o lead para ligar, chamar no WhatsApp, alterar o status, registrar observações e ver o CPF.";
   const assigneeOptions = assignableMembers(team, lead.storeId).map((m) => ({
     id: m.userId,
     label: m.role === "STORE_ADMIN" ? `${m.fullName} (gerente)` : m.fullName,
@@ -75,10 +82,18 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
         <p className="mb-3 text-sm text-muted">
           Telefone <span className="font-semibold tabular-nums text-foreground">{formatPhone(lead.phone)}</span>
         </p>
-        <PhoneActions phone={lead.phone} leadName={lead.fullName} storeName={lead.storeName} />
-        <div className="mt-4 border-t border-line pt-4">
-          <SummaryCopy summary={summary} />
-        </div>
+        {canWork ? (
+          <>
+            <PhoneActions phone={lead.phone} leadName={lead.fullName} storeName={lead.storeName} />
+            <div className="mt-4 border-t border-line pt-4">
+              <SummaryCopy summary={summary} />
+            </div>
+          </>
+        ) : (
+          <p role="note" className="rounded-lg bg-background px-4 py-3 font-medium">
+            {lockedMessage}
+          </p>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
@@ -89,7 +104,7 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
               <DetailsList
                 items={[
                   { label: "Nome", value: lead.fullName },
-                  { label: "CPF", value: <CpfReveal leadId={lead.id} masked={lead.cpfMasked} /> },
+                  { label: "CPF", value: canWork ? <CpfReveal leadId={lead.id} masked={lead.cpfMasked} /> : lead.cpfMasked },
                   { label: "Nascimento", value: `${formatIsoDate(lead.birthDate)} (${age} anos)` },
                   { label: "Telefone", value: formatPhone(lead.phone) },
                   { label: "E-mail", value: lead.email },
@@ -133,18 +148,25 @@ export default async function LeadDetailPage(props: PageProps<"/leads/[id]">) {
             <AssigneeCard
               leadId={lead.id}
               assignedTo={lead.assignedTo}
-              assigneeName={lead.assignedTo ? (names.get(lead.assignedTo) ?? null) : null}
+              assigneeName={assigneeName}
               currentUserId={context.userId}
               canManage={canManage}
               options={assigneeOptions}
             />
-            <StatusSelect leadId={lead.id} status={lead.status} />
+            {canWork ? (
+              <StatusSelect leadId={lead.id} status={lead.status} />
+            ) : (
+              <div>
+                <p className="mb-1.5 text-sm font-medium">Status</p>
+                <StatusBadge status={lead.status} />
+              </div>
+            )}
           </Card>
 
           <Card>
             <CardHeader title="Histórico" />
             <div className="flex flex-col gap-6 p-5">
-              <NoteForm leadId={lead.id} />
+              {canWork ? <NoteForm leadId={lead.id} /> : null}
               <Timeline items={timeline} />
             </div>
           </Card>

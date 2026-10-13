@@ -103,7 +103,7 @@ beforeAll(async () => {
   unwrap(await admin.from("profiles").update({ is_active: false }).eq("id", u.inactiveUser.id).select("id"), "inativo");
   unwrap(await admin.from("store_members").update({ is_active: false }).eq("user_id", u.inactiveMember.id).select("user_id"), "vínculo inativo");
 
-  for (const name of ["a1", "a2", "a3", "a4", "a5", "a6"]) leads[name] = await newLead(campA, `SDR Lead ${name}`);
+  for (const name of ["a1", "a2", "a3", "a4", "a5", "a6", "a7"]) leads[name] = await newLead(campA, `SDR Lead ${name}`);
   leads.b1 = await newLead(campB, "SDR Lead b1");
 });
 
@@ -207,6 +207,112 @@ describe("SUPER_ADMIN", () => {
   });
 });
 
+const setStatus = async (db: Db, lead: string, status: Database["public"]["Enums"]["lead_status"]) => {
+  const res = await db.from("leads").update({ status }).eq("id", lead).select("id");
+  return res.error ? -1 : (res.data ?? []).length; // RLS: 0 linhas = sem permissão
+};
+const addNote = async (db: Db, lead: string) => {
+  // store_id/author_id vêm do trigger; o usuário só envia lead_id e body.
+  const note = { lead_id: lead, body: "Observação de teste SDR." } as Database["public"]["Tables"]["lead_notes"]["Insert"];
+  return (await db.from("lead_notes").insert(note).select("id").single()).error === null;
+};
+const statusOf = async (lead: string) => unwrap(await admin.from("leads").select("status").eq("id", lead).single(), "status").status;
+const revealCount = async (lead: string) => (await events(lead, "CPF_REVEALED")).length;
+const revealsOk = async (db: Db, lead: { id: string; cpf: string }) => {
+  const res = await reveal(db, lead.id);
+  return res.error === null && res.data === lead.cpf; // booleano: falha não imprime o CPF
+};
+
+describe("responsável tem efeito real (status, observação, CPF)", () => {
+  it("lead sem responsável: SDR vê, mas não altera status, não observa e não revela CPF antes de assumir", async () => {
+    const seen = unwrap(await u.sdr1.db.from("leads").select("id, assigned_to").eq("id", leads.a7.id), "ver");
+    expect(seen).toEqual([{ id: leads.a7.id, assigned_to: null }]);
+    expect(await setStatus(u.sdr1.db, leads.a7.id, "CONTACTED")).toBe(0);
+    expect(await addNote(u.sdr1.db, leads.a7.id)).toBe(false);
+    expect((await reveal(u.sdr1.db, leads.a7.id)).error?.code).toBe("KL011");
+    expect(await statusOf(leads.a7.id)).toBe("NEW");
+    expect(await revealCount(leads.a7.id)).toBe(0);
+  });
+
+  it("depois de assumir, o SDR trabalha normalmente", async () => {
+    expect((await assign(u.sdr1.db, leads.a7.id, u.sdr1.id)).error).toBeNull();
+    expect(await setStatus(u.sdr1.db, leads.a7.id, "CONTACTED")).toBe(1);
+    expect(await addNote(u.sdr1.db, leads.a7.id)).toBe(true);
+    expect(await revealsOk(u.sdr1.db, leads.a7)).toBe(true);
+    expect(await statusOf(leads.a7.id)).toBe("CONTACTED");
+  });
+
+  it("SDR A não trabalha o lead do SDR B (vê o responsável, mas não altera, não observa, não revela, não assume)", async () => {
+    const seen = unwrap(await u.sdr2.db.from("leads").select("assigned_to").eq("id", leads.a7.id).single(), "ver");
+    expect(seen.assigned_to).toBe(u.sdr1.id);
+    const reveals = await revealCount(leads.a7.id);
+    expect(await setStatus(u.sdr2.db, leads.a7.id, "WON")).toBe(0);
+    expect(await addNote(u.sdr2.db, leads.a7.id)).toBe(false);
+    expect((await reveal(u.sdr2.db, leads.a7.id)).error?.code).toBe("KL011");
+    expect((await assign(u.sdr2.db, leads.a7.id, u.sdr2.id)).error?.code).toBe("KL012");
+    expect((await assign(u.sdr2.db, leads.a7.id, null)).error?.code).toBe("KL011");
+    expect(await statusOf(leads.a7.id)).toBe("CONTACTED");
+    expect(await assignedTo(leads.a7.id)).toBe(u.sdr1.id);
+    expect(await revealCount(leads.a7.id)).toBe(reveals);
+  });
+
+  it("gerente opera qualquer lead da loja e reatribui; o novo responsável assume o trabalho", async () => {
+    expect(await setStatus(u.adminA.db, leads.a7.id, "IN_PROGRESS")).toBe(1);
+    expect(await addNote(u.adminA.db, leads.a7.id)).toBe(true);
+    expect(await revealsOk(u.adminA.db, leads.a7)).toBe(true);
+    expect((await assign(u.adminA.db, leads.a7.id, u.sdr2.id)).error).toBeNull();
+
+    // SDR B agora faz tudo no próprio lead…
+    expect(await setStatus(u.sdr2.db, leads.a7.id, "WON")).toBe(1);
+    expect(await addNote(u.sdr2.db, leads.a7.id)).toBe(true);
+    expect(await revealsOk(u.sdr2.db, leads.a7)).toBe(true);
+    // …e o SDR A perdeu o acesso de trabalho.
+    expect(await setStatus(u.sdr1.db, leads.a7.id, "LOST")).toBe(0);
+    expect(await addNote(u.sdr1.db, leads.a7.id)).toBe(false);
+    expect((await reveal(u.sdr1.db, leads.a7.id)).error?.code).toBe("KL011");
+    expect(await statusOf(leads.a7.id)).toBe("WON");
+  });
+
+  it("outra loja, usuário inativo e vínculo inativo continuam bloqueados", async () => {
+    const reveals = await revealCount(leads.a7.id);
+    for (const user of [u.sdrB, u.adminB, u.inactiveUser, u.inactiveMember]) {
+      expect(await setStatus(user.db, leads.a7.id, "LOST")).toBe(0);
+      expect(await addNote(user.db, leads.a7.id)).toBe(false);
+      expect((await reveal(user.db, leads.a7.id)).error?.code).toBe("KL010");
+    }
+    expect(await statusOf(leads.a7.id)).toBe("WON");
+    expect(await revealCount(leads.a7.id)).toBe(reveals);
+  });
+
+  it("SUPER_ADMIN continua operando", async () => {
+    expect(await setStatus(u.superAdmin.db, leads.a7.id, "WON")).toBe(1);
+    expect(await addNote(u.superAdmin.db, leads.a7.id)).toBe(true);
+    expect(await revealsOk(u.superAdmin.db, leads.a7)).toBe(true);
+  });
+
+  it("linha do tempo: ASSIGNED, STATUS_CHANGED, NOTE_ADDED e CPF_REVEALED com os autores certos", async () => {
+    const all = unwrap(await admin.from("lead_events").select("type, actor_id").eq("lead_id", leads.a7.id).order("id"), "ev");
+    const who = (id: string | null) =>
+      id === u.sdr1.id ? "sdr1" : id === u.sdr2.id ? "sdr2" : id === u.adminA.id ? "gerente" : id === u.superAdmin.id ? "kapa" : "sistema";
+    expect(all.map((e) => `${e.type}:${who(e.actor_id)}`)).toEqual([
+      "CREATED:sistema",
+      "ASSIGNED:sdr1",
+      "STATUS_CHANGED:sdr1",
+      "NOTE_ADDED:sdr1",
+      "CPF_REVEALED:sdr1",
+      "STATUS_CHANGED:gerente",
+      "NOTE_ADDED:gerente",
+      "CPF_REVEALED:gerente",
+      "ASSIGNED:gerente",
+      "STATUS_CHANGED:sdr2",
+      "NOTE_ADDED:sdr2",
+      "CPF_REVEALED:sdr2",
+      "NOTE_ADDED:kapa",
+      "CPF_REVEALED:kapa",
+    ]);
+  });
+});
+
 describe("CPF", () => {
   it("coluna cpf continua inacessível (mascarado por padrão)", async () => {
     const res = await u.sdr1.db.from("leads").select("cpf").eq("id", leads.a1.id);
@@ -215,32 +321,38 @@ describe("CPF", () => {
     expect(masked.cpf_masked?.includes(leads.a1.cpf)).toBe(false);
   });
 
-  it("revelação autorizada (SDR, gerente, KAPA) devolve o CPF e grava CPF_REVEALED sem o CPF", async () => {
-    const before = (await events(leads.a1.id, "CPF_REVEALED")).length;
-    for (const user of [u.sdr1, u.sdr2, u.adminA, u.superAdmin]) {
-      const res = await reveal(user.db, leads.a1.id);
-      expect(res.error).toBeNull();
-      expect(res.data === leads.a1.cpf).toBe(true); // booleano: falha não imprime o CPF
-    }
-    const ev = await events(leads.a1.id, "CPF_REVEALED");
-    expect(ev).toHaveLength(before + 4);
-    expect(ev.slice(-4).map((e) => e.actor_id)).toEqual([u.sdr1.id, u.sdr2.id, u.adminA.id, u.superAdmin.id]);
+  it("responsável (SDR), gerente e KAPA revelam; cada revelação grava CPF_REVEALED sem o CPF", async () => {
+    // a2 é do sdr1 (assumido acima).
+    const before = await revealCount(leads.a2.id);
+    for (const user of [u.sdr1, u.adminA, u.superAdmin]) expect(await revealsOk(user.db, leads.a2)).toBe(true);
+    const ev = await events(leads.a2.id, "CPF_REVEALED");
+    expect(ev).toHaveLength(before + 3);
+    expect(ev.slice(-3).map((e) => e.actor_id)).toEqual([u.sdr1.id, u.adminA.id, u.superAdmin.id]);
     expect(ev.every((e) => JSON.stringify(e.payload) === "{}")).toBe(true);
   });
 
+  it("SDR que não é o responsável (lead de outro ou sem responsável): negado e sem evento", async () => {
+    const before2 = await revealCount(leads.a2.id);
+    const before1 = await revealCount(leads.a1.id);
+    expect((await reveal(u.sdr2.db, leads.a2.id)).error?.code).toBe("KL011");
+    expect((await reveal(u.sdr1.db, leads.a1.id)).error?.code).toBe("KL011");
+    expect(await revealCount(leads.a2.id)).toBe(before2);
+    expect(await revealCount(leads.a1.id)).toBe(before1);
+  });
+
   it("outra loja, inativo, vínculo inativo e anônimo: negado e sem evento", async () => {
-    const before = (await events(leads.a1.id, "CPF_REVEALED")).length;
+    const before = await revealCount(leads.a2.id);
     for (const user of [u.sdrB, u.adminB, u.inactiveUser, u.inactiveMember]) {
-      const res = await reveal(user.db, leads.a1.id);
+      const res = await reveal(user.db, leads.a2.id);
       expect(res.error?.code).toBe("KL010");
       expect(res.data).toBeNull();
     }
-    expect((await anon.rpc("reveal_lead_cpf", { p_lead_id: leads.a1.id })).data).toBeNull();
-    expect(await events(leads.a1.id, "CPF_REVEALED")).toHaveLength(before);
+    expect((await anon.rpc("reveal_lead_cpf", { p_lead_id: leads.a2.id })).data).toBeNull();
+    expect(await revealCount(leads.a2.id)).toBe(before);
   });
 
   it("CPF_REVEALED: gerente e KAPA veem; SDR não", async () => {
-    const seen = async (db: Db) => unwrap(await db.from("lead_events").select("type").eq("lead_id", leads.a1.id), "ev").map((e) => e.type);
+    const seen = async (db: Db) => unwrap(await db.from("lead_events").select("type").eq("lead_id", leads.a2.id), "ev").map((e) => e.type);
     expect(await seen(u.adminA.db)).toContain("CPF_REVEALED");
     expect(await seen(u.superAdmin.db)).toContain("CPF_REVEALED");
     const sdrSees = await seen(u.sdr1.db);
@@ -249,8 +361,10 @@ describe("CPF", () => {
   });
 
   it("nenhum evento ou observação contém o CPF", async () => {
-    const all = unwrap(await admin.from("lead_events").select("payload").in("lead_id", Object.values(leads).map((l) => l.id)), "todos");
-    const text = JSON.stringify(all);
+    const ids = Object.values(leads).map((l) => l.id);
+    const all = unwrap(await admin.from("lead_events").select("payload").in("lead_id", ids), "eventos");
+    const notes = unwrap(await admin.from("lead_notes").select("body").in("lead_id", ids), "notas");
+    const text = JSON.stringify([all, notes]);
     for (const lead of Object.values(leads)) expect(text.includes(lead.cpf)).toBe(false);
   });
 });
@@ -274,7 +388,7 @@ describe("equipe (store_team)", () => {
 });
 
 describe("KPIs (lead_kpis)", () => {
-  // Estado: a1 sem resp.; a2 sdr1; a3 sem resp.; a4 sdr1 ou sdr2; a5 sem resp.; a6 sdr1.
+  // Estado: a1 sem resp.; a2 sdr1; a3 sem resp.; a4 sdr1 ou sdr2; a5 sem resp.; a6 sdr1; a7 sdr2 (ganho).
   beforeAll(async () => {
     // SDR 1 atende a2: Novo → Contatado → Ganho (primeiro atendimento registrado).
     unwrap(await u.sdr1.db.from("leads").update({ status: "CONTACTED" }).eq("id", leads.a2.id).select("id"), "status");
@@ -288,7 +402,8 @@ describe("KPIs (lead_kpis)", () => {
 
   it("gerente: contagens da loja inteira, por SDR e status", async () => {
     const rows = await kpis(u.adminA.db, storeA);
-    expect(sum(rows, () => true)).toBe(6);
+    expect(sum(rows, () => true)).toBe(7);
+    expect(sum(rows, (r) => r.assigned_to === u.sdr2.id && r.status === "WON")).toBe(1);
     expect(sum(rows, (r) => r.assigned_to === null)).toBe(3);
     expect(sum(rows, (r) => r.assigned_to === u.sdr1.id && r.status === "WON")).toBe(1);
     expect(sum(rows, (r) => r.assigned_to === u.sdr1.id && r.status === "LOST")).toBe(1);

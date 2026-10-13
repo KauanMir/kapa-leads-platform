@@ -2,6 +2,10 @@
 -- KAPA Leads Platform — Fase 9: responsável (SDR) pelo lead, revelação
 -- auditada do CPF, diretório da equipe e KPIs operacionais.
 --
+-- O responsável tem efeito real (RLS): o SDR só TRABALHA (status,
+-- observação, CPF) os leads atribuídos a ele; gerente e KAPA, qualquer lead
+-- da loja. Regra única em private.can_work_lead().
+--
 -- Escrita sensível só por funções com regras explícitas:
 --   assign_lead      → atribui/reatribui/assume (evento ASSIGNED)
 --   reveal_lead_cpf  → devolve o CPF de UM lead (evento CPF_REVEALED)
@@ -11,7 +15,7 @@
 --
 -- Novos códigos de erro (SQLSTATE):
 --   KL010  lead inexistente ou fora do alcance do usuário
---   KL011  sem permissão para essa atribuição
+--   KL011  sem permissão (atribuição, ou CPF de lead que não é do SDR)
 --   KL012  lead já tem outro responsável (SDR não pode tomar)
 --   KL013  responsável inválido (não é membro ativo da loja do lead)
 --
@@ -34,6 +38,60 @@ create index leads_store_assignee_created_idx on public.leads (store_id, assigne
 -- Leitura do responsável pelo Admin. Escrita: somente via assign_lead()
 -- (nenhum GRANT de UPDATE nesta coluna para authenticated).
 grant select (assigned_to) on public.leads to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Quem pode TRABALHAR um lead (alterar status, observar, revelar CPF):
+--   SUPER_ADMIN ativo                       → qualquer lead
+--   STORE_ADMIN ativo da loja do lead       → qualquer lead da loja
+--   STORE_USER (SDR) ativo da loja do lead  → só se for o responsável atual
+-- Ver o lead continua igual (todos os membros da loja), para a fila e a
+-- coluna "Responsável". SECURITY DEFINER: lê o lead sem depender do RLS.
+-- ---------------------------------------------------------------------
+create function private.can_work_lead(p_lead_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.leads l
+    where l.id = p_lead_id
+      and (
+        (select private.is_super_admin())
+        or l.store_id in (select private.admin_store_ids())
+        or (l.store_id in (select private.user_store_ids()) and l.assigned_to = (select auth.uid()))
+      )
+  );
+$$;
+
+-- Status (único campo editável por GRANT): SDR só no próprio lead. Lead de
+-- outro SDR ou sem responsável → o UPDATE não encontra a linha (0 linhas).
+drop policy leads_update on public.leads;
+
+create policy leads_update on public.leads
+  for update to authenticated
+  using (
+    (select private.is_super_admin())
+    or store_id in (select private.admin_store_ids())
+    or (store_id in (select private.user_store_ids()) and assigned_to = (select auth.uid()))
+  )
+  with check (
+    (select private.is_super_admin())
+    or store_id in (select private.admin_store_ids())
+    or (store_id in (select private.user_store_ids()) and assigned_to = (select auth.uid()))
+  );
+
+-- Observações: mesma regra (o SDR precisa assumir o lead antes).
+drop policy lead_notes_insert on public.lead_notes;
+
+create policy lead_notes_insert on public.lead_notes
+  for insert to authenticated
+  with check (
+    author_id = (select auth.uid())
+    and (select private.can_work_lead(lead_id))
+  );
 
 -- ---------------------------------------------------------------------
 -- Evento ASSIGNED a cada troca de responsável (inclusive pelo servidor).
@@ -141,8 +199,10 @@ $$;
 
 -- ---------------------------------------------------------------------
 -- reveal_lead_cpf(lead): CPF completo de UM lead, sempre auditado.
--- Quem pode: SUPER_ADMIN e membros ativos (STORE_ADMIN/STORE_USER) da loja
--- do lead. O evento CPF_REVEALED nunca contém o CPF.
+-- Quem pode: SUPER_ADMIN; STORE_ADMIN ativo da loja do lead; SDR ativo só
+-- se for o responsável atual (lead sem responsável: assumir antes).
+-- Fora da loja → KL010 (como inexistente); da loja, sem permissão → KL011.
+-- O evento CPF_REVEALED nunca contém o CPF.
 -- ---------------------------------------------------------------------
 create function public.reveal_lead_cpf(p_lead_id uuid)
 returns text
@@ -166,6 +226,10 @@ begin
 
   if v_store_id is null or not ((select private.is_super_admin()) or v_store_id in (select private.user_store_ids())) then
     raise exception 'lead not found' using errcode = 'KL010';
+  end if;
+
+  if not (select private.can_work_lead(p_lead_id)) then
+    raise exception 'forbidden' using errcode = 'KL011';
   end if;
 
   insert into public.lead_events (lead_id, store_id, type, actor_id, payload)
@@ -281,8 +345,12 @@ revoke all on function
   public.reveal_lead_cpf(uuid),
   public.store_team(),
   public.lead_kpis(uuid, uuid, timestamptz, timestamptz),
-  private.log_lead_assigned()
+  private.log_lead_assigned(),
+  private.can_work_lead(uuid)
 from public, anon, authenticated;
+
+-- Avaliada dentro da policy de lead_notes (executa com o papel do usuário).
+grant execute on function private.can_work_lead(uuid) to authenticated, service_role;
 
 grant execute on function
   public.assign_lead(uuid, uuid),
