@@ -7,7 +7,7 @@ Os itens marcados com ⏳ dependem de decisões ainda em aberto.
 
 | Item | Decisão |
 |---|---|
-| Hospedagem | **Vercel Pro**, os dois projetos no mesmo time. Sem Cloudflare/OpenNext nesta fase. |
+| Hospedagem | **Vercel**, time `kauan-s-projects3`, projetos `kapa-leads-platform` e `duelo-de-aprovacoes` (ligados ao GitHub, deploy de produção pela `main`). Plano **Hobby** durante o desenvolvimento; **upgrade do mesmo time para Pro antes da campanha operar de verdade** (o Hobby não permite uso comercial). Sem Cloudflare/OpenNext nesta fase. |
 | Domínio da plataforma | `https://leads.assessoriakapa.com.br` |
 | Domínio da LP | ⏳ `https://duelo.vitrineveiculos.com.br` (preferência) ou `https://duelo.assessoriakapa.com.br` |
 | Supabase | O projeto atual é **PRODUÇÃO** (região São Paulo). Testes remotos bloqueados nele (seção 8). |
@@ -29,6 +29,10 @@ Os itens marcados com ⏳ dependem de decisões ainda em aberto.
 | `PUBLIC_LEADS_DEV_ORIGINS` | **não definir** | Ignorada com `NODE_ENV=production` (conferido: `http://localhost:3001` recebe 403). |
 | `ALLOW_REMOTE_*_TESTS`, `E2E_BASE_URL` | **não definir** | Só para testes locais. |
 
+Na Vercel, as variáveis existem só no ambiente **Production** (de propósito: um preview não deve usar o banco de
+produção). Por isso, deploys de preview de outras branches falham no build até existir um Supabase de
+desenvolvimento (seção 8).
+
 O `next build` **falha de propósito** se faltar uma das três variáveis do Supabase, se a URL não for `https`, ou se
 alguma variável `NEXT_PUBLIC_*` parecer uma chave secreta (`sb_secret_…`, nomes com `SECRET`/`SERVICE_ROLE`).
 
@@ -47,6 +51,12 @@ Todas públicas (embutidas no build). Detalhes no `README.md` da LP.
 
 O `next build` da LP falha se faltar qualquer uma, se a API não for `https` só com a origem (ou apontar para
 `localhost`), se `campaignKey`/versão forem inválidas, ou se as URLs legais não forem `https`.
+
+### DNS (Registro.br)
+
+| Host | Tipo | Valor |
+|---|---|---|
+| `leads.assessoriakapa.com.br` | CNAME | `25dd0ce7240afe36.vercel-dns-017.com.` (valor do projeto na Vercel; conferir com `vercel domains verify`) |
 
 ## 2. Supabase Auth (Dashboard → Authentication → URL Configuration)
 
@@ -95,7 +105,7 @@ sobrescrito com o IP real — funciona como está. Se um dia a Cloudflare ficar 
 *acrescenta* ao `x-forwarded-for` enviado pelo cliente; aí o IP confiável passa a ser `CF-Connecting-IP` e
 `clientIpFromHeaders` (`src/lib/leads/rate-limit.ts`) precisa ser ajustado.
 
-Na Vercel Pro também dá para criar uma regra de rate limit no Firewall (WAF) para `POST /api/public/leads`.
+Depois do upgrade para Vercel Pro, também dá para criar uma regra de rate limit no Firewall (WAF) para `POST /api/public/leads`.
 
 ## 6. Headers de segurança (plataforma)
 

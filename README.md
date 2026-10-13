@@ -97,7 +97,7 @@ docs/                  documentação (ex.: guia de integração das LPs)
 4. **Autenticação** — login por e-mail/senha, sessão em cookies, guards no servidor, bloqueio de inativos. ✅
 5. **Admin MVP** — dashboard, leads, detalhe com status/observações/linha do tempo, contato rápido, configurações KAPA. ✅
 6. **Integração da LP Vitrine — Duelo de Aprovações** — LP envia direto do navegador, `form_schema` da campanha, teste local ponta a ponta (ver [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md#10-campanha-integrada-duelo-de-aprovações)). ✅
-7. **Preparação de produção** — build trava com env incompleta, cookies `Secure`/`HttpOnly`, headers de segurança, origens só `https`, checklist de go-live em [`docs/deploy-producao.md`](docs/deploy-producao.md). Hospedagem: Vercel Pro (`gru1`), plataforma em `https://leads.assessoriakapa.com.br`.
+7. **Preparação de produção** — build trava com env incompleta, cookies `Secure`/`HttpOnly`, headers de segurança, origens só `https`, checklist de go-live em [`docs/deploy-producao.md`](docs/deploy-producao.md). Hospedagem: Vercel (`gru1`; Hobby no desenvolvimento, Pro antes da campanha), plataforma em `https://leads.assessoriakapa.com.br`.
 
 ## Tarefas futuras (fora do MVP)
 
