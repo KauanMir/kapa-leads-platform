@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "whatsapp";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "dangerSolid" | "whatsapp";
 type Size = "sm" | "md" | "lg";
 
 const VARIANTS: Record<Variant, string> = {
@@ -8,6 +8,8 @@ const VARIANTS: Record<Variant, string> = {
   secondary: "border border-line-strong bg-surface text-foreground shadow-sm hover:bg-surface-muted disabled:text-muted",
   ghost: "text-foreground hover:bg-background disabled:text-muted",
   danger: "border border-danger/30 bg-surface text-danger hover:bg-danger-soft disabled:opacity-60",
+  // Só para a confirmação final de uma ação destrutiva.
+  dangerSolid: "bg-danger text-white shadow-sm hover:bg-danger/90 disabled:bg-danger/60",
   whatsapp: "bg-whatsapp text-white shadow-sm hover:bg-whatsapp-hover",
 };
 

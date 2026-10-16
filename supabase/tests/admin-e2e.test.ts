@@ -25,7 +25,7 @@ let leadA: { id: string; cpf: string };
 let leadB: string;
 let leadOther: string; // da Loja Alfa, atribuído a OUTRO SDR
 let leadQueue: string; // da Loja Alfa, sem responsável (fila)
-const cookies: Record<"storeUser" | "superAdmin" | "inactive", string> = { storeUser: "", superAdmin: "", inactive: "" };
+const cookies: Record<"storeUser" | "manager" | "superAdmin" | "inactive", string> = { storeUser: "", manager: "", superAdmin: "", inactive: "" };
 
 /** Login com o mesmo cliente SSR do app; devolve o header Cookie resultante. */
 async function sessionCookie(email: string, password: string): Promise<string> {
@@ -130,6 +130,7 @@ beforeAll(async () => {
   const superAdmin = await createTestUser(admin, `${RUN}-super@${TEST_EMAIL_DOMAIN}`, "E2E Super");
   const inactive = await createTestUser(admin, `${RUN}-inactive@${TEST_EMAIL_DOMAIN}`, "E2E Inativo");
   const colleague = await createTestUser(admin, `${RUN}-colleague@${TEST_EMAIL_DOMAIN}`, "E2E Colega SDR");
+  const manager = await createTestUser(admin, `${RUN}-manager@${TEST_EMAIL_DOMAIN}`, "E2E Gerente");
   unwrap(
     await admin
       .from("store_members")
@@ -137,6 +138,7 @@ beforeAll(async () => {
         { store_id: storeA, user_id: storeUser.id, role: "STORE_USER", is_active: true },
         { store_id: storeA, user_id: inactive.id, role: "STORE_USER", is_active: true },
         { store_id: storeA, user_id: colleague.id, role: "STORE_USER", is_active: true },
+        { store_id: storeA, user_id: manager.id, role: "STORE_ADMIN", is_active: true },
       ])
       .select("user_id"),
     "vínculos",
@@ -146,6 +148,7 @@ beforeAll(async () => {
   unwrap(await admin.from("leads").update({ assigned_to: storeUser.id }).eq("id", leadA.id).select("id"), "atribuição própria");
 
   cookies.storeUser = await sessionCookie(storeUser.email, storeUser.password);
+  cookies.manager = await sessionCookie(manager.email, manager.password);
   cookies.superAdmin = await sessionCookie(superAdmin.email, superAdmin.password);
   cookies.inactive = await sessionCookie(inactive.email, inactive.password);
   // Desativa depois do login: a sessão continua válida, mas o servidor deve bloquear.
@@ -317,6 +320,37 @@ describe("SUPER_ADMIN", () => {
     const leads = await get("/leads", cookies.superAdmin);
     expect(leads.html).toContain("Lead Visivel Alfa");
     expect(leads.html).toContain("Lead Secreto Beta");
+  });
+});
+
+describe("EXCLUIR LEAD (ação administrativa)", () => {
+  const hasDelete = (html: string) => html.includes("EXCLUIR LEAD");
+
+  it("SDR não vê a ação, nem no próprio lead", async () => {
+    for (const id of [leadA.id, leadQueue, leadOther]) expect(hasDelete((await get(`/leads/${id}`, cookies.storeUser)).html)).toBe(false);
+  });
+
+  it("gerente vê nos leads da própria loja, com a confirmação; lead de outra loja → não encontrado", async () => {
+    const res = await get(`/leads/${leadA.id}`, cookies.manager);
+    expect(hasDelete(res.html)).toBe(true);
+    expect(res.html).toContain("Excluir lead?");
+    expect(res.html).toContain("Esta ação é permanente. O lead, observações e histórico relacionados serão removidos.");
+    expect(res.html).toContain("Excluir definitivamente");
+    // Ações do dia a dia continuam lá.
+    expect(res.html).toContain("COPIAR RESUMO");
+
+    const other = await get(`/leads/${leadB}`, cookies.manager);
+    expect(renderedNotFound(other.html)).toBe(true);
+    expect(hasDelete(other.html)).toBe(false);
+  });
+
+  it("SUPER_ADMIN vê em qualquer loja", async () => {
+    expect(hasDelete((await get(`/leads/${leadB}`, cookies.superAdmin)).html)).toBe(true);
+  });
+
+  it("/leads mostra o aviso só quando vem da exclusão", async () => {
+    expect((await get("/leads?excluido=1", cookies.manager)).html).toContain("Lead excluído com sucesso.");
+    expect((await get("/leads", cookies.manager)).html).not.toContain("Lead excluído com sucesso.");
   });
 });
 

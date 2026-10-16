@@ -7,6 +7,7 @@ import { NotFoundPanel } from "@/components/admin/not-found-panel";
 import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { AssigneeCard } from "@/components/leads/assignee-card";
 import { CpfReveal } from "@/components/leads/cpf-reveal";
+import { DeleteLead } from "@/components/leads/delete-lead";
 import { DetailsList } from "@/components/leads/details-list";
 import { NoteForm } from "@/components/leads/note-form";
 import { PhoneActions } from "@/components/leads/phone-actions";
@@ -267,6 +268,14 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
           </Card>
         </div>
       </div>
+
+      {/* Ação administrativa e destrutiva, longe das ações do dia a dia. Quem barra de fato é o banco (delete_lead). */}
+      {canManage ? (
+        <div className="mt-10 flex flex-col items-start gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted">Lead incorreto, duplicado, spam ou teste? A exclusão é permanente.</p>
+          <DeleteLead leadId={lead.id} />
+        </div>
+      ) : null}
     </>
   );
 }

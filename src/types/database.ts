@@ -355,6 +355,7 @@ export type Database = {
         Args: { p_assignee_id: string; p_lead_id: string }
         Returns: undefined
       }
+      delete_lead: { Args: { p_lead_id: string }; Returns: undefined }
       lead_kpis: {
         Args: {
           p_campaign_id?: string

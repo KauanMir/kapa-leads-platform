@@ -356,6 +356,22 @@ export async function revealLeadCpf(db: Db, leadId: string): Promise<string | nu
   return typeof data === "string" ? data : null;
 }
 
+export type DeleteLeadResult = { ok: true } | { ok: false; reason: "not_found" | "forbidden" };
+
+/**
+ * Exclui UM lead (observações e histórico saem junto, por cascade, na mesma
+ * transação). Quem pode é decidido pela função delete_lead no banco:
+ * SUPER_ADMIN ou gerente da loja do lead.
+ */
+export async function deleteLead(db: Db, leadId: string): Promise<DeleteLeadResult> {
+  const { error } = await db.rpc("delete_lead", { p_lead_id: leadId });
+  if (!error) return { ok: true };
+  // KL010: inexistente/fora do alcance; KL011: membro da loja sem papel de gerente.
+  if (["KL010", "22P02"].includes(error.code)) return { ok: false, reason: "not_found" };
+  if (["KL011", "42501"].includes(error.code)) return { ok: false, reason: "forbidden" };
+  throw new Error(`delete lead failed (${error.code})`);
+}
+
 /**
  * Linhas para os KPIs (função lead_kpis, com o RLS do usuário). SDR recebe só
  * a própria carteira e a fila sem responsável — a regra está no banco.

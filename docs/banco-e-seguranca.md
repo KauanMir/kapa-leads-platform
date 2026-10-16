@@ -29,6 +29,8 @@ stores ──< campaigns ──< leads ──< lead_notes
 - CPF validado com dígitos verificadores (CHECK). Idade mínima e demais validações ficam na API (Fase 3).
 - Responsável só muda por `assign_lead()` (Fase 9); erros: `KL010` lead fora do alcance, `KL011` sem permissão, `KL012` lead já
   tem outro responsável, `KL013` responsável não é membro ativo da loja.
+- Lead só é excluído por `delete_lead()`, um por chamada (`KL010` fora do alcance, `KL011` não é gerente). Observações e histórico
+  saem junto pelas FKs `ON DELETE CASCADE`, na mesma transação. Nenhum `GRANT DELETE` em `leads`/`lead_notes`/`lead_events` para `authenticated`.
 
 ## Acesso (RLS + GRANTs)
 
@@ -38,8 +40,8 @@ RLS é habilitado explicitamente em todas as tabelas pelas migrations.
 |---|---|
 | `anon` (sem login) | Nenhum. |
 | `STORE_USER` (SDR) | Lê loja, campanhas, leads, notas e eventos **das próprias lojas** (exceto `CPF_REVEALED`). **Só nos leads em que é o responsável:** altera `leads.status`, cria notas e revela CPF (auditado). Assume para si lead **sem responsável**. |
-| `STORE_ADMIN` (gerente) | Lê tudo da própria loja + membros e perfis dos membros; vê `CPF_REVEALED`; altera status, cria notas e revela CPF de **qualquer** lead da loja; atribui/reatribui/devolve leads para membros ativos da loja. |
-| `SUPER_ADMIN` | Lê tudo. Cria/edita lojas, campanhas e vínculos. Atribui em qualquer loja (só para membros daquela loja). |
+| `STORE_ADMIN` (gerente) | Lê tudo da própria loja + membros e perfis dos membros; vê `CPF_REVEALED`; altera status, cria notas e revela CPF de **qualquer** lead da loja; atribui/reatribui/devolve leads para membros ativos da loja; **exclui** leads da própria loja. |
+| `SUPER_ADMIN` | Lê tudo. Cria/edita lojas, campanhas e vínculos. Atribui em qualquer loja (só para membros daquela loja). Exclui leads de qualquer loja. |
 | `service_role` (chave secreta, só servidor) | Ignora RLS. Usado pela API pública (Fase 3). |
 
 **CPF:** usuários autenticados **não** têm `SELECT` na coluna `leads.cpf`, apenas em `cpf_masked` (`***.456.789-**`). Por isso, consultas a `leads` precisam listar as colunas (`select=*` falha). O CPF completo sai **só** por `reveal_lead_cpf(lead)`: confere usuário ativo + loja do lead + `private.can_work_lead` (SDR só se for o responsável), grava `CPF_REVEALED` (sem o CPF) e devolve o CPF daquele lead. CPF nunca vai em URL, query string, log ou HTML inicial.
@@ -57,6 +59,11 @@ RLS é habilitado explicitamente em todas as tabelas pelas migrations.
 `leads.assigned_to` não tem `GRANT UPDATE` para `authenticated`: um `UPDATE` direto é negado. Policies trocadas pela
 Fase 9: `leads_update` e `lead_notes_insert` (SDR só no próprio lead) e `lead_events_select` (`CPF_REVEALED` só gerente/KAPA). Rollback da Fase 9:
 `supabase/rollbacks/20261014120000_lead_assignment_cpf_kpis.down.sql`.
+
+**Excluir lead** (migration `20261016120000_delete_lead`): `delete_lead(lead)`, SECURITY DEFINER, `EXECUTE` só para `authenticated`.
+SUPER_ADMIN ativo: qualquer lead; STORE_ADMIN ativo: só da própria loja; SDR: nunca (`KL011`). Outra loja, usuário ou vínculo inativo,
+lead inexistente: `KL010`. Trava a linha (`FOR UPDATE`) e apaga lead + observações + histórico (cascade). Não fica registro da exclusão.
+Rollback: `supabase/rollbacks/20261016120000_delete_lead.down.sql` (só remove a função; leads excluídos não voltam).
 
 Usuários/vínculos inativos (`profiles.is_active`, `store_members.is_active`) perdem acesso. Loja inativa bloqueia novos leads, mas os membros continuam vendo o histórico.
 

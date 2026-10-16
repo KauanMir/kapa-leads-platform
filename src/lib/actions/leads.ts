@@ -1,10 +1,11 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { RedirectType, redirect } from "next/navigation";
 import { z } from "zod";
 
 import type { ActionResult, FormState } from "@/lib/actions/types";
-import { NOTE_MAX_LENGTH, addLeadNote, assignLead, revealLeadCpf, updateLeadStatus, type AssignResult } from "@/lib/admin/leads";
+import { NOTE_MAX_LENGTH, addLeadNote, assignLead, deleteLead, revealLeadCpf, updateLeadStatus, type AssignResult } from "@/lib/admin/leads";
 import { getAdminSession } from "@/lib/auth/session";
 import { isLeadStatus } from "@/lib/format/status";
 
@@ -87,4 +88,27 @@ export async function revealCpfAction(id: string): Promise<ActionResult<string>>
   if (!cpf) return { ok: false, error: "O CPF só pode ser visto pelo responsável do lead ou pelo gerente." };
   refresh();
   return { ok: true, data: cpf };
+}
+
+/**
+ * Exclusão definitiva (SUPER_ADMIN ou gerente da loja do lead; regra no
+ * banco, delete_lead). Sucesso: volta para /leads substituindo o histórico,
+ * para o "voltar" do navegador não reabrir o lead excluído.
+ */
+export async function deleteLeadAction(id: string): Promise<ActionResult> {
+  if (!leadId.safeParse(id).success) return { ok: false, error: "Dados inválidos." };
+  const { db } = await getAdminSession();
+  let result: Awaited<ReturnType<typeof deleteLead>>;
+  try {
+    result = await deleteLead(db, id);
+  } catch {
+    return { ok: false, error: "Não foi possível excluir o lead agora. Tente novamente." };
+  }
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.reason === "forbidden" ? "Só o gerente da loja pode excluir leads." : "Lead não encontrado ou sem permissão.",
+    };
+  }
+  redirect("/leads?excluido=1", RedirectType.replace);
 }

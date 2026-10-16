@@ -6,7 +6,7 @@ import { AssigneeTabs } from "@/components/leads/assignee-tabs";
 import { LeadFilters } from "@/components/leads/lead-filters";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { Pagination } from "@/components/leads/pagination";
-import { Card, PageHeader } from "@/components/ui/card";
+import { Card, Notice, PageHeader } from "@/components/ui/card";
 import { listCampaigns } from "@/lib/admin/config";
 import { filtersToQuery, parseUrlFilters, toLeadFilters, type AssigneeFilter } from "@/lib/admin/filters";
 import { listLeads } from "@/lib/admin/leads";
@@ -49,6 +49,13 @@ async function LeadsContent(props: PageProps<"/leads">) {
         }
         description={manager ? "Acompanhe e distribua os leads da loja." : "Seus leads e a fila para assumir."}
       />
+
+      {/* Vindo da exclusão. Filtros/paginação remontam a URL sem este parâmetro. */}
+      {searchParams.excluido === "1" ? (
+        <div className="mb-4">
+          <Notice tone="success">Lead excluído com sucesso.</Notice>
+        </div>
+      ) : null}
 
       <AssigneeTabs current={filters.assignee} hrefFor={(assignee) => hrefFor({ assignee })} />
 

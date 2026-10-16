@@ -1,7 +1,7 @@
 /**
  * Fase 9 — operação SDR, direto no banco (Supabase DEV) com sessões reais:
  * responsável pelo lead (assign_lead), CPF auditado (reveal_lead_cpf),
- * diretório da equipe (store_team) e KPIs (lead_kpis).
+ * diretório da equipe (store_team), KPIs (lead_kpis) e exclusão (delete_lead).
  *
  * Dados temporários com prefixo "sdr-test-". Roda junto com `npm run test:rls`
  * (exige ALLOW_REMOTE_RLS_TESTS=true). Nunca imprime CPF, chaves ou senhas.
@@ -423,5 +423,94 @@ describe("KPIs (lead_kpis)", () => {
     expect(await kpis(u.sdrB.db, storeA)).toEqual([]);
     expect(sum(await kpis(u.adminB.db), () => true)).toBe(1);
     expect((await anon.rpc("lead_kpis", {})).error).not.toBeNull();
+  });
+});
+
+describe("excluir lead (delete_lead)", () => {
+  const del = (db: Db, lead: string) => db.rpc("delete_lead", { p_lead_id: lead });
+  async function exists(lead: string) {
+    return unwrap(await admin.from("leads").select("id").eq("id", lead), "lead").length === 1;
+  }
+  async function related(lead: string) {
+    const notes = unwrap(await admin.from("lead_notes").select("id").eq("lead_id", lead), "notas").length;
+    const evs = unwrap(await admin.from("lead_events").select("id").eq("lead_id", lead), "eventos").length;
+    return { notes, evs };
+  }
+  // Lead com responsável, status, observação e CPF revelado (histórico completo).
+  async function fullLead(campaignId: string, name: string, worker: U) {
+    const lead = await newLead(campaignId, name);
+    unwrap(await admin.from("leads").update({ assigned_to: worker.id }).eq("id", lead.id).select("id"), "resp");
+    unwrap(await worker.db.from("leads").update({ status: "CONTACTED" }).eq("id", lead.id).select("id"), "status");
+    expect(await addNote(worker.db, lead.id)).toBe(true);
+    unwrap(await worker.db.rpc("reveal_lead_cpf", { p_lead_id: lead.id }), "cpf");
+    return lead.id;
+  }
+
+  it("gerente exclui lead da própria loja: lead, observações e histórico saem; loja, campanha, usuários e outros leads ficam", async () => {
+    const id = await fullLead(campA, "SDR Lead del-a", u.sdr1);
+    expect(await related(id)).toMatchObject({ notes: 1 });
+    expect((await related(id)).evs).toBeGreaterThanOrEqual(5); // CREATED, ASSIGNED, STATUS_CHANGED, NOTE_ADDED, CPF_REVEALED
+    const othersBefore = unwrap(await admin.from("leads").select("id").eq("store_id", storeA).neq("id", id), "outros").length;
+
+    expect((await del(u.adminA.db, id)).error).toBeNull();
+
+    expect(await exists(id)).toBe(false);
+    expect(await related(id)).toEqual({ notes: 0, evs: 0 });
+    expect(unwrap(await admin.from("leads").select("id").eq("store_id", storeA), "outros")).toHaveLength(othersBefore);
+    expect(unwrap(await admin.from("stores").select("id").in("id", [storeA, storeB]), "lojas")).toHaveLength(2);
+    expect(unwrap(await admin.from("campaigns").select("id").in("id", [campA, campB]), "campanhas")).toHaveLength(2);
+    expect(unwrap(await admin.from("profiles").select("id").in("id", [u.adminA.id, u.sdr1.id]), "perfis")).toHaveLength(2);
+    expect((await del(u.adminA.db, id)).error?.code).toBe("KL010"); // já não existe
+  });
+
+  it("gerente de outra loja, SDR (mesmo responsável), usuário inativo e vínculo inativo não excluem", async () => {
+    const id = await fullLead(campA, "SDR Lead del-b", u.sdr1);
+    const before = await related(id);
+    expect((await del(u.adminB.db, id)).error?.code).toBe("KL010");
+    expect((await del(u.sdrB.db, id)).error?.code).toBe("KL010");
+    expect((await del(u.sdr1.db, id)).error?.code).toBe("KL011");
+    expect((await del(u.sdr2.db, id)).error?.code).toBe("KL011");
+    expect((await del(u.inactiveUser.db, id)).error?.code).toBe("KL010");
+    expect((await del(u.inactiveMember.db, id)).error?.code).toBe("KL010");
+    expect((await anon.rpc("delete_lead", { p_lead_id: id })).error).not.toBeNull();
+    expect(await exists(id)).toBe(true);
+    expect(await related(id)).toEqual(before);
+  });
+
+  it("gerente com perfil ou vínculo desativado não exclui", async () => {
+    const id = await fullLead(campA, "SDR Lead del-c", u.sdr1);
+    try {
+      unwrap(await admin.from("store_members").update({ is_active: false }).eq("user_id", u.adminA.id).select("user_id"), "vínculo");
+      expect((await del(u.adminA.db, id)).error?.code).toBe("KL010");
+      unwrap(await admin.from("store_members").update({ is_active: true }).eq("user_id", u.adminA.id).select("user_id"), "vínculo");
+      unwrap(await admin.from("profiles").update({ is_active: false }).eq("id", u.adminA.id).select("id"), "perfil");
+      expect((await del(u.adminA.db, id)).error?.code).toBe("KL010");
+    } finally {
+      await admin.from("store_members").update({ is_active: true }).eq("user_id", u.adminA.id);
+      await admin.from("profiles").update({ is_active: true }).eq("id", u.adminA.id);
+    }
+    expect(await exists(id)).toBe(true);
+  });
+
+  it("request manipulado: DELETE direto em leads/observações/histórico é negado para todos; id inválido não passa", async () => {
+    const id = await fullLead(campA, "SDR Lead del-d", u.sdr1);
+    const before = await related(id);
+    for (const user of [u.adminA, u.sdr1, u.superAdmin]) {
+      expect((await user.db.from("leads").delete().eq("id", id).select("id")).error?.code).toBe("42501");
+      expect((await user.db.from("leads").delete().eq("store_id", storeA)).error?.code).toBe("42501");
+      expect((await user.db.from("lead_notes").delete().eq("lead_id", id)).error?.code).toBe("42501");
+      expect((await user.db.from("lead_events").delete().eq("lead_id", id)).error?.code).toBe("42501");
+    }
+    expect((await del(u.adminA.db, "nao-e-uuid")).error?.code).toBe("22P02");
+    expect((await del(u.adminA.db, randomUUID())).error?.code).toBe("KL010");
+    expect(await exists(id)).toBe(true);
+    expect(await related(id)).toEqual(before);
+  });
+
+  it("SUPER_ADMIN exclui em qualquer loja", async () => {
+    const id = await fullLead(campB, "SDR Lead del-e", u.adminB);
+    expect((await del(u.superAdmin.db, id)).error).toBeNull();
+    expect(await exists(id)).toBe(false);
+    expect(await related(id)).toEqual({ notes: 0, evs: 0 });
   });
 });
