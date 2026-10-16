@@ -97,6 +97,23 @@ describe("formData", () => {
     expect(formDataSchema.safeParse({ downPaymentCents: 150000 }).success).toBe(true);
   });
 
+  it("aceita o snapshot da simulação da LP Duelo sem mudar as regras (salvo como veio)", () => {
+    const data = {
+      hasTradeIn: false,
+      hasDownPayment: true,
+      downPaymentCents: 2_000_000,
+      desiredVehicleValueCents: 7_000_000,
+      simulationFinancedAmountCents: 5_000_000,
+      simulationMonthlyRateBps: 190,
+      simulation36Cents: 193_028,
+      simulation48Cents: 159_710,
+      simulation60Cents: 140_378,
+      simulationSelectedTerm: 48,
+    };
+    expect(formDataSchema.parse(data)).toEqual(data);
+    expect(schema.parse(payload({ formData: data })).formData).toEqual(data);
+  });
+
   it("formData ausente ou null vira objeto vazio", () => {
     expect(schema.parse(payload({ formData: null })).formData).toEqual({});
   });

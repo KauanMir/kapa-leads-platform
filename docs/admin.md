@@ -29,7 +29,7 @@ Um usuário pode pertencer a várias lojas (vê todas elas).
 |---|---|---|
 | `/dashboard` | todos | Contagem por status (total, novos, contatados, em atendimento, ganhos, perdidos) e 10 leads mais recentes. Filtros: período, campanha, loja. Cards levam à lista filtrada. |
 | `/leads` | todos | Lista com busca (nome ou telefone), status, campanha, loja, período; 25 por página; filtros na URL. Sem CPF. Cards no celular. |
-| `/leads/[id]` | todos | Topo com nome, telefone, WHATSAPP e COPIAR RESUMO, status e responsável; simulação (via `form_schema`), dados pessoais com **CPF mascarado**, campanha/origem e histórico com observações. |
+| `/leads/[id]` | todos | Topo com nome, telefone, WHATSAPP e COPIAR RESUMO, status e responsável; simulação (via `form_schema`) e, quando a LP enviou, a **Simulação apresentada** ao cliente (valores salvos, sem recalcular), dados pessoais com **CPF mascarado**, campanha/origem e histórico com observações. |
 | `/loja` | STORE_ADMIN | Campanhas e equipe das lojas que administra (somente leitura). |
 | `/perfil` | todos | Nome e troca de senha. |
 | `/config/lojas` | SUPER_ADMIN | Listar, criar, ativar/desativar lojas. |

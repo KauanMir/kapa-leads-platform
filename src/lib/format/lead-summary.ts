@@ -1,5 +1,6 @@
 import { formatFormData, formatFormValue } from "@/lib/format/form-data";
 import { formatPhone } from "@/lib/format/phone";
+import { buildPresentedSimulation, isPresentedSimulationKey } from "@/lib/format/simulation";
 
 /**
  * Texto do botão COPIAR RESUMO (colar no WhatsApp do vendedor). Curto, em
@@ -9,6 +10,7 @@ import { formatPhone } from "@/lib/format/phone";
  *   Troca / Veículo na troca / Ano do veículo
  *   Entrada / Valor da entrada
  *   Valor desejado
+ *   Valor estimado a financiar / 36x / 48x / 60x (simulação apresentada ao cliente, se houver)
  *   (outros campos da campanha, com os rótulos do form_schema)
  *
  * Nunca: CPF, nascimento, UTMs/origem, ids ou URLs.
@@ -76,10 +78,23 @@ export function buildLeadSummary(lead: LeadSummaryInput): string {
 
   // Outras campanhas: demais campos com os rótulos do form_schema (ou nomes legíveis da chave).
   const others = formatFormData(data, lead.formSchema)
-    .filter((entry) => !KNOWN.has(entry.key) && !BLOCKED_KEY.test(entry.key) && !CAMEL_ID_KEY.test(entry.key) && usable(entry.value))
+    .filter(
+      (entry) =>
+        !KNOWN.has(entry.key) &&
+        !isPresentedSimulationKey(entry.key) &&
+        !BLOCKED_KEY.test(entry.key) &&
+        !CAMEL_ID_KEY.test(entry.key) &&
+        usable(entry.value),
+    )
     .map((entry) => `${entry.label}: ${entry.value}`);
 
-  return [header, block(data, TRADE_IN), block(data, DOWN_PAYMENT), block(data, DESIRED), others]
+  // Valores salvos no envio (o que o cliente viu), sem recalcular.
+  const presented = buildPresentedSimulation(data);
+  const simulation = presented
+    ? [`Valor estimado a financiar: ${presented.financed}`, ...presented.options.map((o) => `${o.label}: ${o.value}`)]
+    : [];
+
+  return [header, block(data, TRADE_IN), block(data, DOWN_PAYMENT), block(data, DESIRED), simulation, others]
     .filter((lines) => lines.length > 0)
     .map((lines) => lines.join("\n"))
     .join("\n\n");

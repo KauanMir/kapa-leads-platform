@@ -1,4 +1,4 @@
-import { formatFormData, formatFormValue, type FormDataEntry } from "@/lib/format/form-data";
+import { formatCents, formatFormData, formatFormValue, type FormDataEntry } from "@/lib/format/form-data";
 
 /**
  * Dados da simulação para a tela do lead: os três números que o vendedor
@@ -56,6 +56,66 @@ export function buildSimulationView(formData: unknown, formSchema: unknown): Sim
     });
   }
 
-  const others = formatFormData(data, formSchema).filter((entry) => !KNOWN.has(entry.key));
+  const others = formatFormData(data, formSchema).filter((entry) => !KNOWN.has(entry.key) && !isPresentedSimulationKey(entry.key));
   return { highlights, others };
+}
+
+// ---------------------------------------------------------------------
+// Simulação apresentada: snapshot que a LP mostrou ao cliente, salvo em
+// form_data no envio do lead (simulationFinancedAmountCents,
+// simulationMonthlyRateBps, simulation{36,48,60}Cents, simulationSelectedTerm).
+//
+// NUNCA recalcula: se a taxa de referência da LP mudar, leads antigos continuam
+// mostrando os valores originais. Lead sem o snapshot completo → null (sem bloco).
+// ---------------------------------------------------------------------
+
+/** Chaves do snapshot (nunca aparecem com nome técnico na tela nem no resumo). */
+export function isPresentedSimulationKey(key: string): boolean {
+  return /^simulation[A-Z0-9]/.test(key);
+}
+
+const TERM_KEY = /^simulation(\d{1,3})Cents$/;
+
+export type PresentedSimulationOption = { term: number; label: string; cents: number; value: string; selected: boolean };
+
+export type PresentedSimulation = {
+  financedCents: number;
+  financed: string;
+  /** "1,9% a.m." */
+  rate: string;
+  options: PresentedSimulationOption[];
+};
+
+const rateFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
+
+function positiveInt(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+export function buildPresentedSimulation(formData: unknown): PresentedSimulation | null {
+  if (!formData || typeof formData !== "object" || Array.isArray(formData)) return null;
+  const data = formData as Record<string, unknown>;
+
+  const financedCents = data.simulationFinancedAmountCents;
+  const rateBps = data.simulationMonthlyRateBps;
+  if (!positiveInt(financedCents) || !positiveInt(rateBps)) return null;
+
+  const selectedTerm = data.simulationSelectedTerm;
+  const options = Object.entries(data)
+    .flatMap(([key, cents]) => {
+      const match = TERM_KEY.exec(key);
+      if (!match || !positiveInt(cents)) return [];
+      const term = Number(match[1]);
+      return term > 0 ? [{ term, label: `${term}x`, cents, value: formatCents(cents), selected: term === selectedTerm }] : [];
+    })
+    .sort((a, b) => a.term - b.term);
+  if (options.length === 0) return null;
+
+  return {
+    financedCents,
+    financed: formatCents(financedCents),
+    // 190 bps = 1,9% a.m.
+    rate: `${rateFormatter.format(rateBps / 100)}% a.m.`,
+    options,
+  };
 }

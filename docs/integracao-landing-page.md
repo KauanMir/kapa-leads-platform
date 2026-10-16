@@ -88,6 +88,23 @@ A API é genérica e não conhece os campos de cada LP. Regras:
 
 O Admin usa `campaigns.form_schema` para exibir rótulos e formatos desses campos.
 
+#### Simulação apresentada (opcional, `simulation*`)
+
+Uma LP que mostra parcelas ao cliente pode salvar **exatamente o que foi exibido**, para o Admin não recalcular
+(se a taxa de referência mudar, leads antigos continuam com os valores originais):
+
+| Chave | Tipo | Exemplo |
+|---|---|---|
+| `simulationFinancedAmountCents` | inteiro (centavos) | `5000000` = R$ 50.000,00 |
+| `simulationMonthlyRateBps` | inteiro (pontos-base) | `190` = 1,9% a.m. |
+| `simulation{N}Cents` | inteiro (centavos), um por prazo | `simulation48Cents: 159710` |
+| `simulationSelectedTerm` | inteiro (meses) | `48` |
+
+O detalhe do lead mostra o bloco **Simulação apresentada** (valor a financiar, taxa e uma linha por prazo, com o
+prazo registrado em destaque) e o COPIAR RESUMO inclui as parcelas. Sem valor a financiar, taxa ou ao menos um prazo
+válido, o bloco não aparece. Essas chaves nunca são exibidas com o nome técnico. São campos comuns do `formData`:
+nenhuma regra da API muda.
+
 ### tracking (UTMs)
 
 `utmSource`, `utmMedium`, `utmCampaign`, `utmContent`, `utmTerm` (até 255 caracteres) e `pageUrl`, `referrer` (URLs http/https, até 2048). Valores inválidos viram `null` e **nunca** causam recusa do lead. Tracking é informação de marketing, não de segurança.

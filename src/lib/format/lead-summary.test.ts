@@ -18,6 +18,56 @@ const plain = (text: string) => text.replace(/ /g, " ");
 const base = { fullName: " João Silva ", phone: "61999999999", campaignName: "Duelo de Aprovações", formSchema: DUELO_SCHEMA };
 
 describe("COPIAR RESUMO", () => {
+  it("inclui a simulação apresentada ao cliente (curta, sem CPF, ids ou nomes técnicos)", () => {
+    const text = buildLeadSummary({
+      ...base,
+      formData: {
+        hasTradeIn: true,
+        tradeInVehicle: "Onix",
+        tradeInYear: 2021,
+        hasDownPayment: true,
+        downPaymentCents: 2_000_000,
+        desiredVehicleValueCents: 7_000_000,
+        simulationFinancedAmountCents: 5_000_000,
+        simulationMonthlyRateBps: 190,
+        simulation36Cents: 193_028,
+        simulation48Cents: 159_710,
+        simulation60Cents: 140_378,
+        simulationSelectedTerm: 48,
+        cpf: "52998224725",
+        leadId: "abc",
+      },
+    });
+    expect(plain(text)).toBe(
+      [
+        "Lead: João Silva",
+        "Telefone: (61) 99999-9999",
+        "Campanha: Duelo de Aprovações",
+        "",
+        "Troca: Sim",
+        "Veículo na troca: Onix",
+        "Ano do veículo: 2021",
+        "",
+        "Entrada: Sim",
+        "Valor da entrada: R$ 20.000,00",
+        "",
+        "Valor desejado: R$ 70.000,00",
+        "",
+        "Valor estimado a financiar: R$ 50.000,00",
+        "36x: R$ 1.930,28",
+        "48x: R$ 1.597,10",
+        "60x: R$ 1.403,78",
+      ].join("\n"),
+    );
+    expect(text).not.toMatch(/simulation|Bps|Selected|529|abc/i);
+  });
+
+  it("lead antigo sem simulação: resumo igual ao de antes, sem linhas de parcelas", () => {
+    const text = buildLeadSummary({ ...base, formData: { hasTradeIn: false, hasDownPayment: false, desiredVehicleValueCents: 7_000_000 } });
+    expect(text).not.toMatch(/financiar|\d+x:/);
+    expect(text.split("\n").slice(-1)[0]).toMatch(/^Valor desejado: /);
+  });
+
   it("formato curto, em blocos, com R$ formatado", () => {
     const text = buildLeadSummary({
       ...base,

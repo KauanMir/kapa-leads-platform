@@ -22,7 +22,7 @@ import { getAdminSession } from "@/lib/auth/session";
 import { formatDateTime, formatIsoDate, formatRelative } from "@/lib/format/datetime";
 import { buildLeadSummary } from "@/lib/format/lead-summary";
 import { formatPhone } from "@/lib/format/phone";
-import { buildSimulationView, type SimulationHighlight } from "@/lib/format/simulation";
+import { buildPresentedSimulation, buildSimulationView, type PresentedSimulation, type SimulationHighlight } from "@/lib/format/simulation";
 import { ageOn, todayInSaoPaulo } from "@/lib/validation/birth-date";
 
 export const metadata: Metadata = { title: "Lead · KAPA Leads" };
@@ -35,6 +35,49 @@ function Chip({ icon, children }: { icon: ReactNode; children: ReactNode }) {
       {icon}
       <span className="truncate">{children}</span>
     </span>
+  );
+}
+
+/** Valores que a LP mostrou ao cliente no envio (salvos no lead; nada é recalculado aqui). */
+function PresentedSimulationBlock({ simulation }: { simulation: PresentedSimulation }) {
+  return (
+    <section aria-labelledby="presented-simulation" className="overflow-hidden rounded-xl ring-1 ring-inset ring-line">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line bg-surface-muted px-4 py-3">
+        <h3 id="presented-simulation" className="text-xs font-semibold uppercase tracking-wider text-muted">
+          Simulação apresentada
+        </h3>
+        <p className="text-xs text-muted">Valores mostrados ao cliente no envio</p>
+      </div>
+      <div className="p-4">
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <dt className="text-[13px] font-medium text-muted">Valor estimado a financiar</dt>
+            <dd className="mt-1 text-xl font-semibold tracking-tight tabular-nums">{simulation.financed}</dd>
+          </div>
+          <div>
+            <dt className="text-[13px] font-medium text-muted">Taxa de referência</dt>
+            <dd className="mt-1 text-xl font-semibold tracking-tight tabular-nums">{simulation.rate}</dd>
+          </div>
+        </dl>
+        <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {simulation.options.map((option) => (
+            <li
+              key={option.term}
+              className={`rounded-lg px-3 py-2.5 ring-1 ring-inset ${option.selected ? "bg-accent-soft ring-accent/25" : "bg-surface ring-line"}`}
+            >
+              <p className="flex items-center justify-between gap-2">
+                <span className={`text-sm font-semibold ${option.selected ? "text-accent" : ""}`}>{option.label}</span>
+                {option.selected ? <span className="text-[11px] font-medium text-accent">Prazo registrado</span> : null}
+              </p>
+              <p className="mt-0.5 text-[15px] font-semibold tabular-nums">
+                {option.value}
+                <span className="text-sm font-normal text-muted">/mês</span>
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }
 
@@ -71,6 +114,8 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
   });
   const age = ageOn(lead.birthDate, todayInSaoPaulo(new Date()));
   const simulation = buildSimulationView(lead.formData, lead.formSchema);
+  // Só leads enviados com o snapshot (sem snapshot: sem bloco, nada é inventado).
+  const presented = buildPresentedSimulation(lead.formData);
   const showStore = context.isSuperAdmin || context.stores.length > 1;
   const t = lead.tracking;
   const origin = [t.utmSource, t.utmMedium, t.utmCampaign].filter(Boolean).join(" · ");
@@ -165,12 +210,17 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
                   })}
                 </dl>
               ) : null}
-              {simulation.others.length > 0 ? (
+              {presented ? (
                 <div className={simulation.highlights.length > 0 ? "mt-5" : ""}>
+                  <PresentedSimulationBlock simulation={presented} />
+                </div>
+              ) : null}
+              {simulation.others.length > 0 ? (
+                <div className={simulation.highlights.length > 0 || presented ? "mt-5" : ""}>
                   <DetailsList items={simulation.others.map((entry) => ({ key: entry.key, label: entry.label, value: entry.value }))} />
                 </div>
               ) : null}
-              {simulation.highlights.length === 0 && simulation.others.length === 0 ? (
+              {simulation.highlights.length === 0 && simulation.others.length === 0 && !presented ? (
                 <p className="text-sm text-muted">Nenhuma informação.</p>
               ) : null}
             </div>

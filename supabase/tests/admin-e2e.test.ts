@@ -60,7 +60,21 @@ async function get(path: string, cookie = "") {
   return { status: response.status, location: response.headers.get("location"), html: await response.text() };
 }
 
-async function insertLead(campaignId: string, name: string) {
+/** form_data como a LP Duelo envia (R$ 70.000, entrada R$ 20.000) com o snapshot da simulação apresentada. */
+const DUELO_FORM_DATA = {
+  hasTradeIn: false,
+  hasDownPayment: true,
+  downPaymentCents: 2_000_000,
+  desiredVehicleValueCents: 7_000_000,
+  simulationFinancedAmountCents: 5_000_000,
+  simulationMonthlyRateBps: 190,
+  simulation36Cents: 193_028,
+  simulation48Cents: 159_710,
+  simulation60Cents: 140_378,
+  simulationSelectedTerm: 48,
+};
+
+async function insertLead(campaignId: string, name: string, formData: Record<string, number | boolean> = {}) {
   const cpf = randomValidCpf();
   const row = unwrap(
     await admin
@@ -74,6 +88,7 @@ async function insertLead(campaignId: string, name: string) {
         phone: "11987651234",
         consent_version: "test-v1",
         client_submission_id: randomUUID(),
+        form_data: formData,
       })
       .select("id")
       .single(),
@@ -106,7 +121,7 @@ beforeAll(async () => {
       .select("id, slug"),
     "campanhas",
   );
-  leadA = await insertLead(campaigns.find((c) => c.slug === "alfa")!.id, "Lead Visivel Alfa");
+  leadA = await insertLead(campaigns.find((c) => c.slug === "alfa")!.id, "Lead Visivel Alfa", DUELO_FORM_DATA);
   leadB = (await insertLead(campaigns.find((c) => c.slug === "beta")!.id, "Lead Secreto Beta")).id;
   leadOther = (await insertLead(campaigns.find((c) => c.slug === "alfa")!.id, "Lead Do Colega Alfa")).id;
   leadQueue = (await insertLead(campaigns.find((c) => c.slug === "alfa")!.id, "Lead Na Fila Alfa")).id;
@@ -216,6 +231,25 @@ describe("STORE_USER (SDR)", () => {
     expect(res.html).toContain("Lead: Lead Visivel Alfa");
     expect(res.html.includes(leadA.cpf)).toBe(false);
     expect(res.html.includes(`${leadA.cpf.slice(0, 3)}.${leadA.cpf.slice(3, 6)}.${leadA.cpf.slice(6, 9)}-${leadA.cpf.slice(9)}`)).toBe(false);
+  });
+
+  it("simulação apresentada: valores salvos, prazo registrado e resumo com as parcelas; sem nomes técnicos", async () => {
+    const res = await get(`/leads/${leadA.id}`, cookies.storeUser);
+    expect(res.html).toContain("Simulação apresentada");
+    expect(res.html).toMatch(/Valor estimado a financiar[\s\S]{0,400}R\$\s50\.000,00/);
+    expect(res.html).toContain("1,9% a.m.");
+    expect(res.html).toContain("Prazo registrado");
+    for (const value of [/R\$\s1\.930,28/, /R\$\s1\.597,10/, /R\$\s1\.403,78/]) expect(res.html).toMatch(value);
+    // COPIAR RESUMO (texto vai no HTML do botão)
+    expect(res.html).toMatch(/48x: R\$\s1\.597,10/);
+    expect(res.html).not.toMatch(/simulation(FinancedAmount|MonthlyRate|SelectedTerm|\d+Cents)/);
+  });
+
+  it("lead sem snapshot da simulação (lead antigo): sem o bloco", async () => {
+    const res = await get(`/leads/${leadQueue}`, cookies.storeUser);
+    expect(renderedNotFound(res.html)).toBe(false);
+    expect(res.html).not.toContain("Simulação apresentada");
+    expect(res.html).not.toContain("Valor estimado a financiar");
   });
 
   it("lead sem responsável: só ASSUMIR LEAD", async () => {
