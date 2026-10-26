@@ -9,6 +9,7 @@ import { AssigneeCard } from "@/components/leads/assignee-card";
 import { CpfReveal } from "@/components/leads/cpf-reveal";
 import { DeleteLead } from "@/components/leads/delete-lead";
 import { DetailsList } from "@/components/leads/details-list";
+import { IllustrativeSimulationCard } from "@/components/leads/illustrative-simulation-card";
 import { NoteForm } from "@/components/leads/note-form";
 import { PhoneActions } from "@/components/leads/phone-actions";
 import { StatusBadge } from "@/components/leads/status-badge";
@@ -21,6 +22,8 @@ import { assignableMembers, getStoreTeam, teamNames } from "@/lib/admin/team";
 import { buildTimeline } from "@/lib/admin/timeline";
 import { getAdminSession } from "@/lib/auth/session";
 import { formatDateTime, formatIsoDate, formatRelative } from "@/lib/format/datetime";
+import { formatFormData } from "@/lib/format/form-data";
+import { formatIllustrativeAmount } from "@/lib/format/illustrative";
 import { buildLeadSummary } from "@/lib/format/lead-summary";
 import { formatPhone } from "@/lib/format/phone";
 import { buildPresentedSimulation, buildSimulationView, type PresentedSimulation, type SimulationHighlight } from "@/lib/format/simulation";
@@ -184,48 +187,63 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="flex flex-col gap-6 lg:col-span-3">
-          {/* Simulação: os números que o vendedor procura primeiro. */}
-          <Card>
-            <CardHeader icon={<ClipboardList />} title="Simulação" />
-            <div className="p-5">
-              {simulation.highlights.length > 0 ? (
-                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {simulation.highlights.map((item) => {
-                    const Icon = HIGHLIGHT_ICONS[item.key];
-                    const featured = item.key === "desired";
-                    return (
-                      <div
-                        key={item.key}
-                        className={`rounded-xl p-4 ring-1 ring-inset ${featured ? "bg-accent-soft ring-accent/15" : "bg-surface-muted ring-line"}`}
-                      >
-                        <dt className={`flex items-center gap-1.5 text-[13px] font-medium ${featured ? "text-accent" : "text-muted"}`}>
-                          <Icon aria-hidden="true" className="size-3.5" />
-                          {item.label}
-                        </dt>
-                        <dd className={`mt-1.5 break-words text-xl font-semibold tracking-tight tabular-nums ${item.positive ? "" : "text-muted"}`}>
-                          {item.value}
-                        </dd>
-                        {item.detail ? <dd className="text-sm text-muted">{item.detail}</dd> : null}
-                      </div>
-                    );
-                  })}
-                </dl>
-              ) : null}
-              {presented ? (
-                <div className={simulation.highlights.length > 0 ? "mt-5" : ""}>
-                  <PresentedSimulationBlock simulation={presented} />
-                </div>
-              ) : null}
-              {simulation.others.length > 0 ? (
-                <div className={simulation.highlights.length > 0 || presented ? "mt-5" : ""}>
-                  <DetailsList items={simulation.others.map((entry) => ({ key: entry.key, label: entry.label, value: entry.value }))} />
-                </div>
-              ) : null}
-              {simulation.highlights.length === 0 && simulation.others.length === 0 && !presented ? (
-                <p className="text-sm text-muted">Nenhuma informação.</p>
-              ) : null}
-            </div>
-          </Card>
+          {/* Simulação ilustrativa (Fábrica de Aprovação): valor mostrado ao cliente, validade e respostas.
+              Substitui o bloco genérico "Simulação" para não repetir as respostas. */}
+          {lead.illustrative ? (
+            <IllustrativeSimulationCard
+              campaignName={lead.campaignName}
+              clientName={lead.fullName}
+              amount={formatIllustrativeAmount(lead.illustrative)}
+              requestedAt={lead.illustrative.presentedAt}
+              requestedAtLabel={formatDateTime(lead.illustrative.presentedAt)}
+              expiresAt={lead.illustrative.expiresAt}
+              serverNow={new Date().toISOString()}
+              answers={formatFormData(lead.formData, lead.formSchema)}
+            />
+          ) : (
+            /* Simulação: os números que o vendedor procura primeiro. */
+            <Card>
+              <CardHeader icon={<ClipboardList />} title="Simulação" />
+              <div className="p-5">
+                {simulation.highlights.length > 0 ? (
+                  <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    {simulation.highlights.map((item) => {
+                      const Icon = HIGHLIGHT_ICONS[item.key];
+                      const featured = item.key === "desired";
+                      return (
+                        <div
+                          key={item.key}
+                          className={`rounded-xl p-4 ring-1 ring-inset ${featured ? "bg-accent-soft ring-accent/15" : "bg-surface-muted ring-line"}`}
+                        >
+                          <dt className={`flex items-center gap-1.5 text-[13px] font-medium ${featured ? "text-accent" : "text-muted"}`}>
+                            <Icon aria-hidden="true" className="size-3.5" />
+                            {item.label}
+                          </dt>
+                          <dd className={`mt-1.5 break-words text-xl font-semibold tracking-tight tabular-nums ${item.positive ? "" : "text-muted"}`}>
+                            {item.value}
+                          </dd>
+                          {item.detail ? <dd className="text-sm text-muted">{item.detail}</dd> : null}
+                        </div>
+                      );
+                    })}
+                  </dl>
+                ) : null}
+                {presented ? (
+                  <div className={simulation.highlights.length > 0 ? "mt-5" : ""}>
+                    <PresentedSimulationBlock simulation={presented} />
+                  </div>
+                ) : null}
+                {simulation.others.length > 0 ? (
+                  <div className={simulation.highlights.length > 0 || presented ? "mt-5" : ""}>
+                    <DetailsList items={simulation.others.map((entry) => ({ key: entry.key, label: entry.label, value: entry.value }))} />
+                  </div>
+                ) : null}
+                {simulation.highlights.length === 0 && simulation.others.length === 0 && !presented ? (
+                  <p className="text-sm text-muted">Nenhuma informação.</p>
+                ) : null}
+              </div>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             <Card>
@@ -273,7 +291,7 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
       {canManage ? (
         <div className="mt-10 flex flex-col items-start gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted">Lead incorreto, duplicado, spam ou teste? A exclusão é permanente.</p>
-          <DeleteLead leadId={lead.id} />
+          <DeleteLead leadId={lead.id} cpfCooldownDays={lead.cpfCooldownBusinessDays} canReleaseCpfCooldown={context.isSuperAdmin} />
         </div>
       ) : null}
     </>

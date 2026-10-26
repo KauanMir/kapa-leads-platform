@@ -94,21 +94,24 @@ export async function revealCpfAction(id: string): Promise<ActionResult<string>>
  * Exclusão definitiva (SUPER_ADMIN ou gerente da loja do lead; regra no
  * banco, delete_lead). Sucesso: volta para /leads substituindo o histórico,
  * para o "voltar" do navegador não reabrir o lead excluído.
+ * `releaseCpfCooldown`: pedido de eliminação do titular (LGPD) — remove também
+ * o bloqueio de CPF; o banco só aceita para SUPER_ADMIN e com `identityVerified`.
  */
-export async function deleteLeadAction(id: string): Promise<ActionResult> {
-  if (!leadId.safeParse(id).success) return { ok: false, error: "Dados inválidos." };
+export async function deleteLeadAction(id: string, releaseCpfCooldown = false, identityVerified = false): Promise<ActionResult> {
+  if (!leadId.safeParse(id).success || typeof releaseCpfCooldown !== "boolean" || typeof identityVerified !== "boolean") {
+    return { ok: false, error: "Dados inválidos." };
+  }
   const { db } = await getAdminSession();
   let result: Awaited<ReturnType<typeof deleteLead>>;
   try {
-    result = await deleteLead(db, id);
+    result = await deleteLead(db, id, releaseCpfCooldown, identityVerified);
   } catch {
     return { ok: false, error: "Não foi possível excluir o lead agora. Tente novamente." };
   }
   if (!result.ok) {
-    return {
-      ok: false,
-      error: result.reason === "forbidden" ? "Só o gerente da loja pode excluir leads." : "Lead não encontrado ou sem permissão.",
-    };
+    if (result.reason === "invalid") return { ok: false, error: "Confirme que a identidade do titular foi verificada." };
+    const forbidden = releaseCpfCooldown ? "Só a KAPA pode liberar o bloqueio de CPF." : "Só o gerente da loja pode excluir leads.";
+    return { ok: false, error: result.reason === "forbidden" ? forbidden : "Lead não encontrado ou sem permissão." };
   }
   redirect("/leads?excluido=1", RedirectType.replace);
 }

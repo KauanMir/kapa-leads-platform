@@ -121,8 +121,9 @@ A data do consentimento (`consent_at`) é registrada pelo servidor; a LP não en
 
 | HTTP | Corpo | Quando |
 |---|---|---|
-| `201` | `{ "success": true, "leadId": "uuid" }` | Lead criado. |
-| `200` | `{ "success": true, "leadId": "uuid" }` | Reenvio do mesmo `clientSubmissionId` (devolve o lead já criado). |
+| `201` | `{ "success": true, "leadId": "uuid" }` | Lead criado. Campanhas com valor ilustrativo também trazem `simulation` (ver §5.2). |
+| `200` | `{ "success": true, "leadId": "uuid" }` | Reenvio do mesmo `clientSubmissionId` (devolve o lead já criado, com o mesmo `simulation`). |
+| `409` | `{ "success": false, "error": "CPF_COOLDOWN", "requestId": "..." }` | Campanha com bloqueio de CPF: o CPF já tem solicitação recente **na mesma loja** (ver §5.1). Nada é salvo. Não repetir automaticamente. |
 | `400` | `{ "success": false, "error": "INVALID_PAYLOAD", "requestId": "...", "fields": ["lead.cpf"] }` | Dados inválidos, JSON inválido ou `Content-Type` diferente de `application/json`. `fields` lista **apenas os caminhos** dos campos com problema. |
 | `403` | `{ "success": false, "error": "ORIGIN_NOT_ALLOWED", "requestId": "..." }` | Origem da página não cadastrada na campanha. |
 | `404` | `{ "success": false, "error": "CAMPAIGN_UNAVAILABLE", "requestId": "..." }` | Campanha inexistente, inativa ou de loja inativa (resposta propositalmente genérica). |
@@ -138,7 +139,51 @@ As respostas nunca devolvem dados pessoais. O header `X-Request-Id` (também no 
 
 - Gere **um** UUID quando o usuário clicar em enviar e **reutilize o mesmo** em todas as novas tentativas desse envio (timeout, erro de rede, 500, duplo clique).
 - O mesmo `clientSubmissionId` na mesma campanha nunca gera lead duplicado: a API responde `200` com o `leadId` original.
-- Um novo preenchimento do formulário deve gerar um novo UUID. O mesmo CPF pode gerar vários leads (não há bloqueio por CPF).
+- Um novo preenchimento do formulário deve gerar um novo UUID. O mesmo CPF pode gerar vários leads, exceto nas campanhas
+  com bloqueio de CPF (§5.1).
+
+### 5.1 Bloqueio de CPF por dias úteis (por campanha; hoje só Fábrica de Aprovação / RCAR)
+
+Ligado por `campaigns.cpf_cooldown_business_days` (Fábrica: 10). Aplicado **no banco**, no INSERT do lead (trigger), então vale
+para qualquer navegador, sessão, cookie ou dispositivo:
+
+- Escopo: **mesma loja**. O CPF não é bloqueado em outras lojas; campanhas sem a regra (ex.: Vitrine) não bloqueiam nem são bloqueadas.
+- O CPF é comparado já normalizado (só dígitos, a API normaliza antes de gravar).
+- Contagem no calendário de Brasília: o dia da solicitação é o dia 0; contam os dias úteis seguintes (segunda a sexta, exceto feriados
+  nacionais e os locais do DF — Decreto distrital nº 48.117/2025: Corpus Christi e 30/11). Pontos facultativos (Carnaval, Cinzas,
+  vésperas) contam como dias úteis.
+- **Fim do bloqueio:** 00:00 (Brasília) do dia seguinte ao 10º dia útil — gravado no lead em `cpf_cooldown_until`.
+  Ex.: pedido na segunda 26/10/2026 → liberado em 11/11/2026 00:00 (02/11 é Finados).
+- Concorrência: trava transacional por loja + CPF (`pg_advisory_xact_lock`); requisições simultâneas → só a primeira cria o lead.
+- Idempotência preservada: o reenvio do **mesmo** `clientSubmissionId` não é bloqueado — recebe `200` com o lead original.
+- Independe da validade de 36 h do valor (§5.2): o valor pode expirar e o CPF continuar bloqueado.
+- **Excluir o lead no Admin não libera o CPF.** O bloqueio fica num registro próprio (`private.cpf_cooldowns`) com só a loja,
+  um código HMAC-SHA256 do CPF (chave secreta que não sai do banco) e o fim do bloqueio — sem CPF, nome ou telefone; é
+  removido depois do vencimento por uma limpeza diária (pg_cron) e a cada novo lead. Pedido do titular (LGPD): só a KAPA, na
+  tela **Configurações KAPA → Pedidos LGPD** (consulta por CPF, escolhe a loja, motivo e confirmação de identidade; funciona
+  mesmo com o lead já excluído) ou excluindo o lead com a opção LGPD. Tudo auditado, sem CPF.
+- Resposta `409 CPF_COOLDOWN` sem CPF, datas ou dados de outros leads. Mensagem da LP: "Já existe uma solicitação recente para este
+  CPF. Aguarde o prazo de 10 dias úteis para realizar uma nova simulação."
+
+### 5.2 Valor ilustrativo da simulação (`simulation`)
+
+Ligado por `campaigns.illustrative_{min,max,step}_cents` + `illustrative_validity_hours` (Fábrica: R$ 35.000,00 a R$ 80.000,00,
+passo R$ 50,00, 36 h). O **banco** define o valor no INSERT (derivado só do `clientSubmissionId`; sem CPF/idade; milhares redondos são
+deslocados em R$ 250) e grava no lead (`illustrative_amount_cents`, `illustrative_presented_at` = registro, `illustrative_expires_at`
+= registro + 36 h). Imutável (`KL004`). Resposta de sucesso:
+
+```json
+{ "success": true, "leadId": "uuid",
+  "simulation": { "kind": "ILLUSTRATIVE", "amountCents": 5475000,
+                  "presentedAt": "2026-10-26T13:00:00.000Z", "expiresAt": "2026-10-28T01:00:00.000Z",
+                  "serverTime": "2026-10-26T13:00:00.120Z" } }
+```
+
+- A LP mostra **exatamente** `amountCents` (nunca recalcula) e conta até `expiresAt` usando `serverTime` para corrigir o relógio do
+  aparelho. O Admin mostra o mesmo valor e a mesma validade ("Valor da simulação — ilustrativo", Vigente/Expirada).
+- `kind` é sempre `"ILLUSTRATIVE"`: **não** é decisão de crédito. Uma pré-aprovação real (status e valor oficiais de uma instituição
+  financeira) será outro tipo, gravado à parte, quando houver integração bancária — não existe hoje.
+- As 36 h são a validade da apresentação do valor, não prazo de atendimento nem reserva de crédito.
 
 ## 6. Honeypot (website)
 

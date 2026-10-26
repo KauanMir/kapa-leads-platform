@@ -28,6 +28,12 @@
   --sidebar-hover: #182036;
   --sidebar-line: #1f2840;
   --sidebar-text: #a9b2c6;
+  /* Identidade da campanha Fábrica de Aprovação (só no bloco da simulação ilustrativa). */
+  --fabrica-ink: #06100a;
+  --fabrica-green: #0c4a1c;
+  --fabrica-green-light: #1db33e;
+  --fabrica-green-glow: #5be07f;
+  --fabrica-yellow: #ffd000;
 }
 
 @theme inline {
@@ -53,6 +59,11 @@
   --color-sidebar-hover: var(--sidebar-hover);
   --color-sidebar-line: var(--sidebar-line);
   --color-sidebar-text: var(--sidebar-text);
+  --color-fabrica-ink: var(--fabrica-ink);
+  --color-fabrica-green: var(--fabrica-green);
+  --color-fabrica-green-light: var(--fabrica-green-light);
+  --color-fabrica-green-glow: var(--fabrica-green-glow);
+  --color-fabrica-yellow: var(--fabrica-yellow);
   --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.03);
   --shadow-raised: 0 4px 16px -4px rgb(16 24 40 / 0.08), 0 2px 4px -2px rgb(16 24 40 / 0.04);
   --font-sans: var(--font-geist-sans);

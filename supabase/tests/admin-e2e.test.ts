@@ -25,6 +25,7 @@ let leadA: { id: string; cpf: string };
 let leadB: string;
 let leadOther: string; // da Loja Alfa, atribuído a OUTRO SDR
 let leadQueue: string; // da Loja Alfa, sem responsável (fila)
+let leadFabrica: string; // da Loja Alfa, campanha com valor ilustrativo e bloqueio de CPF (como a Fábrica de Aprovação)
 const cookies: Record<"storeUser" | "manager" | "superAdmin" | "inactive", string> = { storeUser: "", manager: "", superAdmin: "", inactive: "" };
 
 /** Login com o mesmo cliente SSR do app; devolve o header Cookie resultante. */
@@ -121,6 +122,30 @@ beforeAll(async () => {
       .select("id, slug"),
     "campanhas",
   );
+  const fabricaCampaign = unwrap(
+    await admin
+      .from("campaigns")
+      .insert({
+        store_id: storeA,
+        slug: "fabrica",
+        name: "E2E Fabrica de Aprovacao",
+        consent_version: "test-v1",
+        form_schema: {
+          hasTradeIn: { label: "Possui carro na troca", format: "boolean", order: 1 },
+          hasDownPayment: { label: "Possui entrada", format: "boolean", order: 2 },
+          hasDriversLicense: { label: "Possui CNH", format: "boolean", order: 3 },
+        },
+        cpf_cooldown_business_days: 10,
+        illustrative_min_cents: 3_500_000,
+        illustrative_max_cents: 8_000_000,
+        illustrative_step_cents: 5_000,
+        illustrative_validity_hours: 36,
+      })
+      .select("id")
+      .single(),
+    "campanha fábrica",
+  );
+  leadFabrica = (await insertLead(fabricaCampaign.id, "Lead Fabrica Alfa", { hasTradeIn: true, hasDownPayment: false, hasDriversLicense: true })).id;
   leadA = await insertLead(campaigns.find((c) => c.slug === "alfa")!.id, "Lead Visivel Alfa", DUELO_FORM_DATA);
   leadB = (await insertLead(campaigns.find((c) => c.slug === "beta")!.id, "Lead Secreto Beta")).id;
   leadOther = (await insertLead(campaigns.find((c) => c.slug === "alfa")!.id, "Lead Do Colega Alfa")).id;
@@ -253,6 +278,28 @@ describe("STORE_USER (SDR)", () => {
     expect(renderedNotFound(res.html)).toBe(false);
     expect(res.html).not.toContain("Simulação apresentada");
     expect(res.html).not.toContain("Valor estimado a financiar");
+    expect(res.html).not.toContain("Valor da simulação — ilustrativo");
+  });
+
+  it("valor ilustrativo (Fábrica): o MESMO valor gravado no lead, validade vigente, respostas e sem status bancário", async () => {
+    const stored = unwrap(
+      await admin.from("leads").select("illustrative_amount_cents, illustrative_expires_at").eq("id", leadFabrica).single(),
+      "valor gravado",
+    );
+    const cents = stored.illustrative_amount_cents!;
+    const amount = `R$ ${Math.floor(cents / 100).toLocaleString("pt-BR")},${String(cents % 100).padStart(2, "0")}`;
+    const res = await get(`/leads/${leadFabrica}`, cookies.storeUser);
+    expect(res.html).toContain("Valor da simulação — ilustrativo");
+    expect(res.html.replace(/ /g, " ")).toContain(amount);
+    expect(res.html).toContain("E2E Fabrica de Aprovacao");
+    expect(res.html).toContain("Validade da simulação");
+    expect(res.html).toMatch(/>3[56]:\d\d:\d\d</);
+    expect(res.html).toContain("Vigente");
+    expect(res.html).toContain('data-state="valid"');
+    for (const label of ["Possui carro na troca", "Possui entrada", "Possui CNH"]) expect(res.html).toContain(label);
+    expect(res.html).not.toMatch(/crédito liberado|aprovado pelo banco|pré-aprovado/i);
+    // Coluna interna do bloqueio nunca vai para a tela.
+    expect(res.html).not.toContain("cpf_cooldown_until");
   });
 
   it("lead sem responsável: só ASSUMIR LEAD", async () => {
@@ -290,9 +337,27 @@ describe("STORE_USER (SDR)", () => {
     expect(renderedNotFound(res.html)).toBe(true);
     expect(res.html).not.toContain("E2E Loja Beta");
   });
+
+  it("Pedidos LGPD (bloqueio de CPF): SDR e gerente não acessam nem veem o menu", async () => {
+    for (const cookie of [cookies.storeUser, cookies.manager]) {
+      const res = await get("/config/lgpd", cookie);
+      expect(renderedNotFound(res.html)).toBe(true);
+      expect(res.html).not.toContain("Consultar registros");
+      expect((await get("/dashboard", cookie)).html).not.toContain('href="/config/lgpd"');
+    }
+  });
 });
 
 describe("SUPER_ADMIN", () => {
+  it("Pedidos LGPD: tela de consulta/eliminação e auditoria, no menu da KAPA", async () => {
+    const res = await get("/config/lgpd", cookies.superAdmin);
+    expect(renderedNotFound(res.html)).toBe(false);
+    expect(res.html).toContain("Pedidos LGPD");
+    expect(res.html).toContain("Consultar registros");
+    expect(res.html).toContain("Auditoria");
+    expect(res.html).toContain('href="/config/lgpd"');
+  });
+
   it("dashboard com visão da equipe e seletor de responsável no lead", async () => {
     const dashboard = await get("/dashboard", cookies.superAdmin);
     expect(dashboard.html).toContain("Leads recebidos");
@@ -346,6 +411,18 @@ describe("EXCLUIR LEAD (ação administrativa)", () => {
 
   it("SUPER_ADMIN vê em qualquer loja", async () => {
     expect(hasDelete((await get(`/leads/${leadB}`, cookies.superAdmin)).html)).toBe(true);
+  });
+
+  it("campanha com bloqueio de CPF: gerente é avisado que o bloqueio continua; só a KAPA vê a opção LGPD", async () => {
+    const LGPD = "Pedido de eliminação do titular (LGPD)";
+    const manager = (await get(`/leads/${leadFabrica}`, cookies.manager)).html;
+    expect(manager).toContain("O bloqueio de 10 dias úteis para novas solicitações deste CPF continua valendo.");
+    expect(manager).not.toContain(LGPD);
+    expect((await get(`/leads/${leadFabrica}`, cookies.superAdmin)).html).toContain(LGPD);
+    // Campanha sem a regra (ex.: Vitrine): nem aviso nem opção.
+    const plain = (await get(`/leads/${leadQueue}`, cookies.superAdmin)).html;
+    expect(plain).not.toContain("continua valendo");
+    expect(plain).not.toContain(LGPD);
   });
 
   it("/leads mostra o aviso só quando vem da exclusão", async () => {

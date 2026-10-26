@@ -26,6 +26,7 @@ function navFor(context: AdminContext): NavSection[] {
         { href: "/config/lojas", label: "Lojas", icon: "stores" },
         { href: "/config/campanhas", label: "Campanhas", icon: "campaigns" },
         { href: "/config/usuarios", label: "Usuários", icon: "users" },
+        { href: "/config/lgpd", label: "Pedidos LGPD", icon: "privacy" },
       ],
     });
   }

@@ -4,8 +4,10 @@
  */
 import { z } from "zod";
 
+import { LGPD_REASONS } from "@/lib/admin/lgpd-options";
 import { formSchemaSchema } from "@/lib/format/form-data";
 import { CONSENT_VERSION_PATTERN } from "@/lib/leads/public-lead-schema";
+import { isValidCpf, normalizeCpf } from "@/lib/validation/cpf";
 
 const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -128,6 +130,35 @@ export const changePasswordSchema = z
     confirm: z.string(),
   })
   .refine((data) => data.password === data.confirm, { message: "As senhas não conferem", path: ["confirm"] });
+
+// ---------------------------------------------------------------------
+// Pedidos LGPD (bloqueio de CPF). O CPF é normalizado aqui, no servidor; a
+// mensagem de erro nunca repete o valor digitado.
+// ---------------------------------------------------------------------
+
+const lgpdCpf = z
+  .string()
+  .max(20, "CPF inválido")
+  .transform((value, ctx) => {
+    const cpf = normalizeCpf(value.trim());
+    if (!cpf || !isValidCpf(cpf)) {
+      ctx.addIssue({ code: "custom", message: "CPF inválido" });
+      return z.NEVER;
+    }
+    return cpf;
+  });
+
+const mustConfirm = (message: string) => checkbox.refine((value) => value === true, message);
+
+export const lgpdLookupSchema = z.object({ cpf: lgpdCpf });
+
+export const lgpdReleaseSchema = z.object({
+  cpf: lgpdCpf,
+  storeId: z.uuid("Escolha a loja"),
+  reason: z.enum(LGPD_REASONS, "Escolha o motivo"),
+  identityVerified: mustConfirm("Confirme que a identidade do titular foi verificada"),
+  confirmed: mustConfirm("Confirme a eliminação"),
+});
 
 /** Primeira mensagem de erro de cada campo. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {

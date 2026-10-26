@@ -5,6 +5,7 @@ import {
   RepositoryError,
   createPublicLeadsHandler,
   type CampaignRecord,
+  type IllustrativeConfig,
   type NewLead,
   type PublicLeadsDeps,
   type PublicLeadsLogEntry,
@@ -29,6 +30,7 @@ function setup(overrides: Partial<PublicLeadsDeps> = {}, campaignOverrides: Part
     allowedOrigins: [`${ORIGIN}/`],
     campaignActive: true,
     storeActive: true,
+    illustrative: null,
     ...campaignOverrides,
   };
   const deps: PublicLeadsDeps = {
@@ -36,9 +38,9 @@ function setup(overrides: Partial<PublicLeadsDeps> = {}, campaignOverrides: Part
     isOriginAllowedForAnyCampaign: async (origin) => origin === ORIGIN,
     insertLead: async (lead) => {
       inserted.push(lead);
-      return { status: "created", leadId: "lead-1" };
+      return { status: "created", lead: { id: "lead-1", illustrative: null } };
     },
-    findLeadIdBySubmission: async () => "lead-existing",
+    findLeadBySubmission: async () => ({ id: "lead-existing", illustrative: null }),
     devOrigins: [],
     rateLimiter: null,
     now: () => NOW,
@@ -275,6 +277,64 @@ describe("POST /api/public/leads — honeypot e idempotência", () => {
   it("campanha desativada durante o envio → 404", async () => {
     const { handler } = setup({ insertLead: async () => ({ status: "campaign_unavailable" }) });
     expect((await handler.POST(post(validBody()))).status).toBe(404);
+  });
+});
+
+/** Fábrica de Aprovação: R$ 35.000,00 a R$ 80.000,00, passo R$ 50,00, 36 h. */
+const FABRICA: IllustrativeConfig = { minCents: 3_500_000, maxCents: 8_000_000, stepCents: 5_000, validityHours: 36 };
+const STORED = { amountCents: 5_475_000, presentedAt: "2026-10-10T14:59:58.000Z", expiresAt: "2026-10-12T02:59:58.000Z" };
+
+describe("POST /api/public/leads — bloqueio de CPF e valor ilustrativo", () => {
+  it("CPF com solicitação recente na loja → 409 CPF_COOLDOWN, com CORS e sem dados pessoais", async () => {
+    const { handler, logs } = setup({ insertLead: async () => ({ status: "cpf_cooldown" }) });
+    const response = await handler.POST(post(validBody()));
+    const res = await read(response);
+    expect(res.status).toBe(409);
+    expect(res.json).toEqual({ success: false, error: "CPF_COOLDOWN", requestId: "req-1" });
+    expect(response.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expectNoPii(res.text);
+    expect(logs[0]).toMatchObject({ status: 409, code: "CPF_COOLDOWN", campaignId: "campaign-1" });
+    expectNoPii(JSON.stringify(logs));
+  });
+
+  it("201 devolve o valor e a validade GRAVADOS pelo banco, com a hora do servidor", async () => {
+    const { handler } = setup({ insertLead: async () => ({ status: "created", lead: { id: "lead-1", illustrative: STORED } }) }, { illustrative: FABRICA });
+    const res = await read(await handler.POST(post(validBody())));
+    expect(res.status).toBe(201);
+    expect(res.json).toEqual({
+      success: true,
+      leadId: "lead-1",
+      simulation: { kind: "ILLUSTRATIVE", ...STORED, serverTime: NOW.toISOString() },
+    });
+    expectNoPii(res.text);
+  });
+
+  it("reenvio do mesmo pedido → 200 com o MESMO valor e a MESMA validade (nada é recalculado)", async () => {
+    const { handler } = setup(
+      { insertLead: async () => ({ status: "duplicate" }), findLeadBySubmission: async () => ({ id: "lead-existing", illustrative: STORED }) },
+      { illustrative: FABRICA },
+    );
+    const res = await read(await handler.POST(post(validBody())));
+    expect(res.status).toBe(200);
+    expect(res.json).toMatchObject({ leadId: "lead-existing", simulation: { amountCents: STORED.amountCents, presentedAt: STORED.presentedAt, expiresAt: STORED.expiresAt } });
+  });
+
+  it("campanha sem valor ilustrativo (ex.: Vitrine): resposta sem simulation", async () => {
+    const { handler } = setup();
+    const res = await read(await handler.POST(post(validBody())));
+    expect(res.json).toEqual({ success: true, leadId: "lead-1" });
+  });
+
+  it("honeypot numa campanha com valor ilustrativo: mesma forma de resposta, valor na faixa, nada gravado", async () => {
+    const { handler, inserted } = setup({}, { illustrative: FABRICA });
+    const res = await read(await handler.POST(post(validBody({ website: "bot" }))));
+    const simulation = (res.json as { simulation: { amountCents: number; presentedAt: string; expiresAt: string } }).simulation;
+    expect(res.status).toBe(201);
+    expect(inserted).toHaveLength(0);
+    expect(simulation.amountCents).toBeGreaterThanOrEqual(FABRICA.minCents);
+    expect(simulation.amountCents).toBeLessThanOrEqual(FABRICA.maxCents);
+    expect(simulation.amountCents % FABRICA.stepCents).toBe(0);
+    expect(Date.parse(simulation.expiresAt) - Date.parse(simulation.presentedAt)).toBe(36 * 3_600_000);
   });
 });
 

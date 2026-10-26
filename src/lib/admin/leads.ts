@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { KpiRow } from "@/lib/admin/kpis";
 import { parseLeadSearch } from "@/lib/admin/search";
+import { toIllustrativeValue, type IllustrativeValue } from "@/lib/format/illustrative";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/format/status";
 import type { DateRange } from "@/lib/format/period";
 import type { Database, Json } from "@/types/database";
@@ -150,7 +151,8 @@ export async function getDashboardCounts(db: Db, filters: Omit<LeadFilters, "sta
 const DETAIL_COLUMNS =
   "id, full_name, cpf_masked, birth_date, phone, email, form_data, status, consent_version, consent_at, " +
   "utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, referrer, created_at, store_id, assigned_to, " +
-  "campaign:campaigns(id, name, form_schema, store:stores(id, name))";
+  "illustrative_amount_cents, illustrative_presented_at, illustrative_expires_at, " +
+  "campaign:campaigns(id, name, form_schema, cpf_cooldown_business_days, store:stores(id, name))";
 
 export type LeadDetail = {
   id: string;
@@ -179,6 +181,10 @@ export type LeadDetail = {
   campaignId: string | null;
   campaignName: string | null;
   formSchema: Json | null;
+  /** Dias úteis de bloqueio de CPF da campanha (null: campanha sem a regra). */
+  cpfCooldownBusinessDays: number | null;
+  /** Valor ilustrativo mostrado ao cliente (null: campanha sem simulação ilustrativa ou lead antigo). */
+  illustrative: IllustrativeValue | null;
 };
 
 type DetailRow = {
@@ -202,7 +208,16 @@ type DetailRow = {
   created_at: string;
   store_id: string;
   assigned_to: string | null;
-  campaign: { id: string; name: string; form_schema: Json; store: { id: string; name: string } | null } | null;
+  illustrative_amount_cents: number | null;
+  illustrative_presented_at: string | null;
+  illustrative_expires_at: string | null;
+  campaign: {
+    id: string;
+    name: string;
+    form_schema: Json;
+    cpf_cooldown_business_days: number | null;
+    store: { id: string; name: string } | null;
+  } | null;
 };
 
 /** null quando o lead não existe OU não é visível para o usuário (RLS). */
@@ -242,6 +257,8 @@ export async function getLeadDetail(db: Db, leadId: string): Promise<LeadDetail 
     campaignId: row.campaign?.id ?? null,
     campaignName: row.campaign?.name ?? null,
     formSchema: row.campaign?.form_schema ?? null,
+    cpfCooldownBusinessDays: row.campaign?.cpf_cooldown_business_days ?? null,
+    illustrative: toIllustrativeValue(row),
   };
 }
 
@@ -356,19 +373,27 @@ export async function revealLeadCpf(db: Db, leadId: string): Promise<string | nu
   return typeof data === "string" ? data : null;
 }
 
-export type DeleteLeadResult = { ok: true } | { ok: false; reason: "not_found" | "forbidden" };
+export type DeleteLeadResult = { ok: true } | { ok: false; reason: "not_found" | "forbidden" | "invalid" };
 
 /**
  * Exclui UM lead (observações e histórico saem junto, por cascade, na mesma
  * transação). Quem pode é decidido pela função delete_lead no banco:
- * SUPER_ADMIN ou gerente da loja do lead.
+ * SUPER_ADMIN ou gerente da loja do lead. O bloqueio de CPF (10 dias úteis)
+ * continua valendo; `releaseCpfCooldown` (pedido de eliminação do titular,
+ * LGPD) também o remove — só SUPER_ADMIN (senão, forbidden) e só com a
+ * identidade do titular verificada (senão, invalid). Auditado no banco.
  */
-export async function deleteLead(db: Db, leadId: string): Promise<DeleteLeadResult> {
-  const { error } = await db.rpc("delete_lead", { p_lead_id: leadId });
+export async function deleteLead(db: Db, leadId: string, releaseCpfCooldown = false, identityVerified = false): Promise<DeleteLeadResult> {
+  const { error } = await db.rpc("delete_lead", {
+    p_lead_id: leadId,
+    p_release_cpf_cooldown: releaseCpfCooldown,
+    p_identity_verified: identityVerified,
+  });
   if (!error) return { ok: true };
   // KL010: inexistente/fora do alcance; KL011: membro da loja sem papel de gerente.
   if (["KL010", "22P02"].includes(error.code)) return { ok: false, reason: "not_found" };
   if (["KL011", "42501"].includes(error.code)) return { ok: false, reason: "forbidden" };
+  if (error.code === "22023") return { ok: false, reason: "invalid" };
   throw new Error(`delete lead failed (${error.code})`);
 }
 

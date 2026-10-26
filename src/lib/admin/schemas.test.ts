@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { generateCampaignKey } from "@/lib/admin/config";
-import { campaignInputSchema, createUserSchema, parseStrictOrigin, storeInputSchema } from "@/lib/admin/schemas";
+import { campaignInputSchema, createUserSchema, fieldErrors, lgpdLookupSchema, lgpdReleaseSchema, parseStrictOrigin, storeInputSchema } from "@/lib/admin/schemas";
 
 const STORE_ID = "3f0c9a52-6b0e-4c1e-9d0a-2a8f5c1d7e44";
 
@@ -81,5 +81,49 @@ describe("outros formulários", () => {
     const keys = new Set(Array.from({ length: 50 }, generateCampaignKey));
     expect(keys.size).toBe(50);
     for (const key of keys) expect(key).toMatch(/^camp_pk_[a-z0-9]{32}$/);
+  });
+});
+
+describe("pedidos LGPD (bloqueio de CPF)", () => {
+  const release = (overrides: Record<string, unknown> = {}) => ({
+    cpf: "529.982.247-25",
+    storeId: STORE_ID,
+    reason: "ELIMINACAO",
+    identityVerified: "on",
+    confirmed: "on",
+    ...overrides,
+  });
+
+  it("normaliza o CPF no servidor (com ou sem máscara) e valida os dígitos", () => {
+    expect(lgpdLookupSchema.parse({ cpf: " 529.982.247-25 " }).cpf).toBe("52998224725");
+    expect(lgpdLookupSchema.parse({ cpf: "52998224725" }).cpf).toBe("52998224725");
+    for (const cpf of ["52998224724", "111.111.111-11", "abc", "5299822472", ""]) {
+      expect(lgpdLookupSchema.safeParse({ cpf }).success, cpf).toBe(false);
+    }
+  });
+
+  it("erro de CPF nunca repete o valor digitado", () => {
+    const result = lgpdLookupSchema.safeParse({ cpf: "529.982.247-24" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(JSON.stringify(fieldErrors(result.error))).not.toMatch(/529|982|247/);
+  });
+
+  it("eliminação exige loja, motivo da lista, identidade verificada e confirmação explícita", () => {
+    expect(lgpdReleaseSchema.parse(release())).toEqual({
+      cpf: "52998224725",
+      storeId: STORE_ID,
+      reason: "ELIMINACAO",
+      identityVerified: true,
+      confirmed: true,
+    });
+    const errors = (input: Record<string, unknown>) => {
+      const result = lgpdReleaseSchema.safeParse(input);
+      return result.success ? {} : fieldErrors(result.error);
+    };
+    expect(errors(release({ identityVerified: null }))).toHaveProperty("identityVerified");
+    expect(errors(release({ confirmed: null }))).toHaveProperty("confirmed");
+    expect(errors(release({ reason: "MARKETING" }))).toHaveProperty("reason");
+    expect(errors(release({ storeId: "loja" }))).toHaveProperty("storeId");
+    for (const reason of ["OPOSICAO", "USO_INDEVIDO_TERCEIRO"]) expect(lgpdReleaseSchema.safeParse(release({ reason })).success).toBe(true);
   });
 });

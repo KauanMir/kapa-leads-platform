@@ -514,3 +514,192 @@ describe("excluir lead (delete_lead)", () => {
     expect(await related(id)).toEqual({ notes: 0, evs: 0 });
   });
 });
+
+describe("bloqueio de CPF (10 dias úteis) x exclusão do lead", () => {
+  let campRule: string;
+  let campRuleB: string;
+  const RULES = {
+    consent_version: "test-v1",
+    cpf_cooldown_business_days: 10,
+    illustrative_min_cents: 3_500_000,
+    illustrative_max_cents: 8_000_000,
+    illustrative_step_cents: 5_000,
+    illustrative_validity_hours: 36,
+  };
+
+  beforeAll(async () => {
+    const rows = unwrap(
+      await admin
+        .from("campaigns")
+        .insert([
+          { store_id: storeA, slug: "fabrica", name: "SDR Campanha Fabrica", ...RULES },
+          { store_id: storeB, slug: "fabrica", name: "SDR Campanha Fabrica Beta", ...RULES },
+        ])
+        .select("id, store_id"),
+      "campanhas com bloqueio",
+    );
+    campRule = rows.find((c) => c.store_id === storeA)!.id;
+    campRuleB = rows.find((c) => c.store_id === storeB)!.id;
+  });
+
+  /** Novo pedido (outro clientSubmissionId) com o CPF; o trigger aplica o bloqueio. */
+  const tryLead = (cpf: string, campaignId = campRule) =>
+    admin
+      .from("leads")
+      .insert({
+        campaign_id: campaignId,
+        store_id: "00000000-0000-0000-0000-000000000000",
+        full_name: "SDR Lead bloqueio",
+        cpf,
+        birth_date: "1990-05-20",
+        phone: "11987650000",
+        consent_version: "test-v1",
+        client_submission_id: randomUUID(),
+      })
+      .select("id")
+      .single();
+  /** Exclusão; `release` = opção LGPD, que exige a identidade verificada (por padrão, confirmada junto). */
+  const del = (db: Db, lead: string, release?: boolean, identity = release) =>
+    db.rpc("delete_lead", {
+      p_lead_id: lead,
+      ...(release === undefined ? {} : { p_release_cpf_cooldown: release, p_identity_verified: identity }),
+    });
+
+  it("exclusão operacional (gerente ou KAPA) NÃO libera o CPF: novo pedido continua bloqueado", async () => {
+    for (const who of [u.adminA, u.superAdmin]) {
+      const cpf = randomValidCpf();
+      const first = await tryLead(cpf);
+      expect(first.error).toBeNull();
+      expect((await del(who.db, first.data!.id)).error).toBeNull();
+      expect(unwrap(await admin.from("leads").select("id").eq("cpf", cpf), "leads do CPF")).toHaveLength(0);
+      expect((await tryLead(cpf)).error?.code).toBe("KL005");
+    }
+  });
+
+  it("gerente não consegue liberar o bloqueio (nem pedindo): KL011 e o lead fica", async () => {
+    const cpf = randomValidCpf();
+    const first = await tryLead(cpf);
+    expect((await del(u.adminA.db, first.data!.id, true)).error?.code).toBe("KL011");
+    expect(unwrap(await admin.from("leads").select("id").eq("id", first.data!.id), "lead")).toHaveLength(1);
+    for (const user of [u.sdr1, u.adminB]) expect((await del(user.db, first.data!.id, true)).error?.code).toMatch(/KL01[01]/);
+    expect((await tryLead(cpf)).error?.code).toBe("KL005");
+  });
+
+  it("pedido do titular (LGPD), só KAPA: exclui o lead E o bloqueio; o CPF pode pedir de novo", async () => {
+    const cpf = randomValidCpf();
+    const first = await tryLead(cpf);
+    // Sem confirmar a verificação de identidade: recusado, nada muda.
+    expect((await del(u.superAdmin.db, first.data!.id, true, false)).error?.code).toBe("22023");
+    expect(unwrap(await admin.from("leads").select("id").eq("id", first.data!.id), "lead")).toHaveLength(1);
+    expect((await del(u.superAdmin.db, first.data!.id, true)).error).toBeNull();
+    const [audit] = unwrap(
+      await admin.from("lgpd_cpf_cooldown_releases").select("store_id, reason, channel, record_found, performed_by").order("id", { ascending: false }).limit(1),
+      "auditoria",
+    );
+    expect(audit).toEqual({ store_id: storeA, reason: "ELIMINACAO", channel: "EXCLUSAO_LEAD", record_found: true, performed_by: u.superAdmin.id });
+    expect(unwrap(await admin.from("leads").select("id").eq("cpf", cpf), "leads do CPF")).toHaveLength(0);
+    const again = await tryLead(cpf);
+    expect(again.error).toBeNull();
+    // ... e o novo pedido volta a bloquear.
+    expect((await tryLead(cpf)).error?.code).toBe("KL005");
+  });
+
+  it("liberar um CPF não libera outro CPF", async () => {
+    const [cpf1, cpf2] = [randomValidCpf(), randomValidCpf()];
+    const a = await tryLead(cpf1);
+    await tryLead(cpf2);
+    expect((await del(u.superAdmin.db, a.data!.id, true)).error).toBeNull();
+    expect((await tryLead(cpf2)).error?.code).toBe("KL005");
+    expect((await tryLead(cpf1)).error).toBeNull();
+  });
+
+  it("o registro do bloqueio e a chave ficam fora do alcance da API (anon, usuários e chave secreta)", async () => {
+    for (const db of [anon, u.superAdmin.db, admin] as Db[]) {
+      const schema = db.schema("private" as "public");
+      expect((await schema.from("cpf_cooldowns" as "leads").select("*")).error).not.toBeNull();
+      expect((await schema.from("secrets" as "leads").select("*")).error).not.toBeNull();
+    }
+    // Coluna informativa do lead também não é legível pelo Admin.
+    expect((await u.adminA.db.from("leads").select("cpf_cooldown_until").limit(1)).error?.code).toBe("42501");
+  });
+
+  describe("Pedidos LGPD no painel (lgpd_cpf_cooldown_lookup / lgpd_release_cpf_cooldown)", () => {
+    const lookup = (db: Db, cpf: string) => db.rpc("lgpd_cpf_cooldown_lookup", { p_cpf: cpf });
+    const release = (db: Db, storeId: string, cpf: string, reason = "ELIMINACAO", identity = true) =>
+      db.rpc("lgpd_release_cpf_cooldown", { p_store_id: storeId, p_cpf: cpf, p_reason: reason, p_identity_verified: identity });
+    const lastAudit = async () =>
+      unwrap(await admin.from("lgpd_cpf_cooldown_releases").select("*").order("id", { ascending: false }).limit(1), "auditoria")[0];
+
+    it("lead JÁ excluído pela loja: a KAPA encontra o registro e o elimina; o CPF volta a poder pedir", async () => {
+      const cpf = randomValidCpf();
+      const first = await tryLead(cpf);
+      expect((await del(u.adminA.db, first.data!.id)).error).toBeNull(); // exclusão operacional
+      expect((await tryLead(cpf)).error?.code).toBe("KL005");
+
+      const found = unwrap(await lookup(u.superAdmin.db, cpf), "consulta");
+      expect(found).toHaveLength(1);
+      expect(found[0]).toMatchObject({ store_id: storeA, store_name: expect.any(String), active: true });
+      expect(Object.keys(found[0]).sort()).toEqual(["active", "blocked_until", "store_id", "store_name"]);
+
+      expect(unwrap(await release(u.superAdmin.db, storeA, cpf, "OPOSICAO"), "eliminar")).toBe(true);
+      expect(unwrap(await lookup(u.superAdmin.db, cpf), "consulta depois")).toEqual([]);
+      expect((await tryLead(cpf)).error).toBeNull();
+
+      const audit = await lastAudit();
+      expect(audit).toMatchObject({ store_id: storeA, reason: "OPOSICAO", channel: "PAINEL_LGPD", identity_verified: true, record_found: true, performed_by: u.superAdmin.id });
+      // Auditoria mínima: nenhuma coluna com CPF, código do CPF, lead ou nome.
+      expect(Object.keys(audit).sort()).toEqual(["channel", "created_at", "id", "identity_verified", "performed_by", "reason", "record_found", "store_id"]);
+      expect(JSON.stringify(audit)).not.toContain(cpf);
+    });
+
+    it("isolamento: eliminar na loja A não libera a loja B (ex.: RCAR x Vitrine)", async () => {
+      const cpf = randomValidCpf();
+      await tryLead(cpf, campRule);
+      await tryLead(cpf, campRuleB);
+      expect(unwrap(await lookup(u.superAdmin.db, cpf), "consulta").map((r) => r.store_id).sort()).toEqual([storeA, storeB].sort());
+      expect(unwrap(await release(u.superAdmin.db, storeA, cpf, "USO_INDEVIDO_TERCEIRO"), "eliminar A")).toBe(true);
+      expect((await tryLead(cpf, campRule)).error).toBeNull();
+      expect((await tryLead(cpf, campRuleB)).error?.code).toBe("KL005");
+    });
+
+    it("sem registro: nada é apagado, mas o pedido fica auditado (record_found = false)", async () => {
+      const cpf = randomValidCpf();
+      expect(unwrap(await lookup(u.superAdmin.db, cpf), "consulta")).toEqual([]);
+      expect(unwrap(await release(u.superAdmin.db, storeA, cpf), "eliminar")).toBe(false);
+      expect(await lastAudit()).toMatchObject({ store_id: storeA, record_found: false, channel: "PAINEL_LGPD" });
+    });
+
+    it("gerente, SDR, usuário inativo e anônimo não consultam nem eliminam; nada muda", async () => {
+      const cpf = randomValidCpf();
+      await tryLead(cpf);
+      for (const user of [u.adminA, u.sdr1, u.adminB, u.inactiveUser]) {
+        expect((await lookup(user.db, cpf)).error?.code, "consulta").toMatch(/KL011|42501/);
+        expect((await release(user.db, storeA, cpf)).error?.code, "eliminar").toMatch(/KL011|42501/);
+      }
+      expect((await lookup(anon, cpf)).error).not.toBeNull();
+      expect((await release(anon, storeA, cpf)).error).not.toBeNull();
+      expect((await tryLead(cpf)).error?.code).toBe("KL005");
+    });
+
+    it("entrada inválida é recusada: CPF, motivo, identidade não confirmada e loja inexistente", async () => {
+      const cpf = randomValidCpf();
+      await tryLead(cpf);
+      expect((await lookup(u.superAdmin.db, "529.982.247-25")).error?.code).toBe("22023"); // só normalizado (11 dígitos)
+      expect((await lookup(u.superAdmin.db, "52998224724")).error?.code).toBe("22023"); // dígito verificador
+      expect((await release(u.superAdmin.db, storeA, cpf, "MARKETING")).error?.code).toBe("22023");
+      expect((await release(u.superAdmin.db, storeA, cpf, "ELIMINACAO", false)).error?.code).toBe("22023");
+      expect((await release(u.superAdmin.db, randomUUID(), cpf)).error?.code).toBe("KL010");
+      expect((await tryLead(cpf)).error?.code).toBe("KL005");
+    });
+
+    it("auditoria: só a KAPA lê; ninguém grava pela API", async () => {
+      expect(unwrap(await u.superAdmin.db.from("lgpd_cpf_cooldown_releases").select("id").limit(1), "kapa")).toHaveLength(1);
+      expect(unwrap(await u.adminA.db.from("lgpd_cpf_cooldown_releases").select("id"), "gerente")).toEqual([]);
+      expect((await anon.from("lgpd_cpf_cooldown_releases").select("id")).error).not.toBeNull();
+      const forged = { store_id: storeA, reason: "ELIMINACAO", channel: "PAINEL_LGPD", identity_verified: true, record_found: true };
+      for (const db of [u.superAdmin.db, u.adminA.db]) {
+        expect((await db.from("lgpd_cpf_cooldown_releases").insert(forged)).error?.code).toBe("42501");
+      }
+    });
+  });
+});

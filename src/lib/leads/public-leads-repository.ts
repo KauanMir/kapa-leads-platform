@@ -7,13 +7,36 @@ import {
   type InsertLeadResult,
   type NewLead,
   type PublicLeadsDeps,
+  type StoredLead,
 } from "@/lib/leads/public-leads-handler";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 type Repository = Pick<
   PublicLeadsDeps,
-  "findCampaignByKey" | "isOriginAllowedForAnyCampaign" | "insertLead" | "findLeadIdBySubmission"
+  "findCampaignByKey" | "isOriginAllowedForAnyCampaign" | "insertLead" | "findLeadBySubmission"
 >;
+
+/** Colunas do lead devolvidas à LP: id e o valor ilustrativo definido pelo banco. */
+const STORED_LEAD_COLUMNS = "id, illustrative_amount_cents, illustrative_presented_at, illustrative_expires_at";
+
+type StoredLeadRow = {
+  id: string;
+  illustrative_amount_cents: number | null;
+  illustrative_presented_at: string | null;
+  illustrative_expires_at: string | null;
+};
+
+function toStoredLead(row: StoredLeadRow): StoredLead {
+  const { illustrative_amount_cents: amountCents, illustrative_presented_at: presentedAt, illustrative_expires_at: expiresAt } = row;
+  return {
+    id: row.id,
+    // A CHECK do banco garante as três juntas; datas normalizadas para ISO 8601 (UTC).
+    illustrative:
+      amountCents !== null && presentedAt !== null && expiresAt !== null
+        ? { amountCents, presentedAt: new Date(presentedAt).toISOString(), expiresAt: new Date(expiresAt).toISOString() }
+        : null,
+  };
+}
 
 /**
  * Acesso ao banco da API pública (chave secreta, server-only).
@@ -25,7 +48,10 @@ export function createSupabasePublicLeadsRepository(): Repository {
     async findCampaignByKey(campaignKey): Promise<CampaignRecord | null> {
       const { data, error } = await getSupabaseAdmin()
         .from("campaigns")
-        .select("id, store_id, consent_version, allowed_origins, is_active, stores!inner(is_active)")
+        // String única (sem concatenação) para o supabase-js inferir os tipos.
+        .select(
+          "id, store_id, consent_version, allowed_origins, is_active, stores!inner(is_active), illustrative_min_cents, illustrative_max_cents, illustrative_step_cents, illustrative_validity_hours",
+        )
         .eq("campaign_key", campaignKey)
         .maybeSingle();
 
@@ -39,6 +65,18 @@ export function createSupabasePublicLeadsRepository(): Repository {
         allowedOrigins: data.allowed_origins,
         campaignActive: data.is_active,
         storeActive: data.stores.is_active,
+        illustrative:
+          data.illustrative_min_cents !== null &&
+          data.illustrative_max_cents !== null &&
+          data.illustrative_step_cents !== null &&
+          data.illustrative_validity_hours !== null
+            ? {
+                minCents: data.illustrative_min_cents,
+                maxCents: data.illustrative_max_cents,
+                stepCents: data.illustrative_step_cents,
+                validityHours: data.illustrative_validity_hours,
+              }
+            : null,
       };
     },
 
@@ -78,10 +116,10 @@ export function createSupabasePublicLeadsRepository(): Repository {
           page_url: tracking.pageUrl,
           referrer: tracking.referrer,
         })
-        .select("id")
+        .select(STORED_LEAD_COLUMNS)
         .single();
 
-      if (!error) return { status: "created", leadId: data.id };
+      if (!error) return { status: "created", lead: toStoredLead(data) };
 
       switch (error.code) {
         case "23505": // UNIQUE (campaign_id, client_submission_id)
@@ -91,6 +129,8 @@ export function createSupabasePublicLeadsRepository(): Repository {
           return { status: "campaign_unavailable" };
         case "KL003": // consent_version diferente
           return { status: "consent_mismatch" };
+        case "KL005": // CPF com solicitação recente na mesma loja
+          return { status: "cpf_cooldown" };
         case "23514": // CHECK
         case "22001": // valor longo demais
         case "22P02": // representação inválida
@@ -102,16 +142,16 @@ export function createSupabasePublicLeadsRepository(): Repository {
       }
     },
 
-    async findLeadIdBySubmission(campaignId, clientSubmissionId) {
+    async findLeadBySubmission(campaignId, clientSubmissionId) {
       const { data, error } = await getSupabaseAdmin()
         .from("leads")
-        .select("id")
+        .select(STORED_LEAD_COLUMNS)
         .eq("campaign_id", campaignId)
         .eq("client_submission_id", clientSubmissionId)
         .maybeSingle();
 
       if (error) throw new RepositoryError("find_lead", error.code);
-      return data?.id ?? null;
+      return data ? toStoredLead(data) : null;
     },
   };
 }

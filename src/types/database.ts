@@ -19,9 +19,14 @@ export type Database = {
           allowed_origins: string[]
           campaign_key: string
           consent_version: string
+          cpf_cooldown_business_days: number | null
           created_at: string
           form_schema: Json
           id: string
+          illustrative_max_cents: number | null
+          illustrative_min_cents: number | null
+          illustrative_step_cents: number | null
+          illustrative_validity_hours: number | null
           is_active: boolean
           name: string
           slug: string
@@ -32,9 +37,14 @@ export type Database = {
           allowed_origins?: string[]
           campaign_key?: string
           consent_version: string
+          cpf_cooldown_business_days?: number | null
           created_at?: string
           form_schema?: Json
           id?: string
+          illustrative_max_cents?: number | null
+          illustrative_min_cents?: number | null
+          illustrative_step_cents?: number | null
+          illustrative_validity_hours?: number | null
           is_active?: boolean
           name: string
           slug: string
@@ -45,9 +55,14 @@ export type Database = {
           allowed_origins?: string[]
           campaign_key?: string
           consent_version?: string
+          cpf_cooldown_business_days?: number | null
           created_at?: string
           form_schema?: Json
           id?: string
+          illustrative_max_cents?: number | null
+          illustrative_min_cents?: number | null
+          illustrative_step_cents?: number | null
+          illustrative_validity_hours?: number | null
           is_active?: boolean
           name?: string
           slug?: string
@@ -160,12 +175,16 @@ export type Database = {
           consent_at: string
           consent_version: string
           cpf: string
+          cpf_cooldown_until: string | null
           cpf_masked: string | null
           created_at: string
           email: string | null
           form_data: Json
           full_name: string
           id: string
+          illustrative_amount_cents: number | null
+          illustrative_expires_at: string | null
+          illustrative_presented_at: string | null
           page_url: string | null
           phone: string
           referrer: string | null
@@ -186,12 +205,16 @@ export type Database = {
           consent_at?: string
           consent_version: string
           cpf: string
+          cpf_cooldown_until?: string | null
           cpf_masked?: string | null
           created_at?: string
           email?: string | null
           form_data?: Json
           full_name: string
           id?: string
+          illustrative_amount_cents?: number | null
+          illustrative_expires_at?: string | null
+          illustrative_presented_at?: string | null
           page_url?: string | null
           phone: string
           referrer?: string | null
@@ -212,12 +235,16 @@ export type Database = {
           consent_at?: string
           consent_version?: string
           cpf?: string
+          cpf_cooldown_until?: string | null
           cpf_masked?: string | null
           created_at?: string
           email?: string | null
           form_data?: Json
           full_name?: string
           id?: string
+          illustrative_amount_cents?: number | null
+          illustrative_expires_at?: string | null
+          illustrative_presented_at?: string | null
           page_url?: string | null
           phone?: string
           referrer?: string | null
@@ -244,6 +271,54 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaigns"
             referencedColumns: ["id", "store_id"]
+          },
+        ]
+      }
+      lgpd_cpf_cooldown_releases: {
+        Row: {
+          channel: string
+          created_at: string
+          id: number
+          identity_verified: boolean
+          performed_by: string | null
+          reason: string
+          record_found: boolean
+          store_id: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          id?: never
+          identity_verified: boolean
+          performed_by?: string | null
+          reason: string
+          record_found: boolean
+          store_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          id?: never
+          identity_verified?: boolean
+          performed_by?: string | null
+          reason?: string
+          record_found?: boolean
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lgpd_cpf_cooldown_releases_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lgpd_cpf_cooldown_releases_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -355,7 +430,14 @@ export type Database = {
         Args: { p_assignee_id: string; p_lead_id: string }
         Returns: undefined
       }
-      delete_lead: { Args: { p_lead_id: string }; Returns: undefined }
+      delete_lead: {
+        Args: {
+          p_identity_verified?: boolean
+          p_lead_id: string
+          p_release_cpf_cooldown?: boolean
+        }
+        Returns: undefined
+      }
       lead_kpis: {
         Args: {
           p_campaign_id?: string
@@ -370,6 +452,24 @@ export type Database = {
           leads: number
           status: Database["public"]["Enums"]["lead_status"]
         }[]
+      }
+      lgpd_cpf_cooldown_lookup: {
+        Args: { p_cpf: string }
+        Returns: {
+          active: boolean
+          blocked_until: string
+          store_id: string
+          store_name: string
+        }[]
+      }
+      lgpd_release_cpf_cooldown: {
+        Args: {
+          p_cpf: string
+          p_identity_verified: boolean
+          p_reason: string
+          p_store_id: string
+        }
+        Returns: boolean
       }
       reveal_lead_cpf: { Args: { p_lead_id: string }; Returns: string }
       store_team: {

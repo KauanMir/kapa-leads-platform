@@ -6,6 +6,8 @@
  * Ordem do POST:
  *   rate limit → Content-Type → tamanho → JSON → campaignKey → campanha
  *   → Origin → honeypot → validação completa → consent_version → INSERT
+ *   (o INSERT aplica no banco o bloqueio de CPF por dias úteis e define o
+ *   valor ilustrativo da simulação, quando a campanha tem essas regras)
  *
  * Nunca devolve nem registra em log: CPF, telefone, nascimento, formData,
  * store_id, stack trace ou mensagem do Postgres.
@@ -24,8 +26,17 @@ export type PublicLeadErrorCode =
   | "ORIGIN_NOT_ALLOWED"
   | "CAMPAIGN_UNAVAILABLE"
   | "PAYLOAD_TOO_LARGE"
+  | "CPF_COOLDOWN"
   | "TOO_MANY_REQUESTS"
   | "INTERNAL_ERROR";
+
+/** Faixa do valor ilustrativo da campanha (null = campanha sem valor ilustrativo). */
+export type IllustrativeConfig = {
+  minCents: number;
+  maxCents: number;
+  stepCents: number;
+  validityHours: number;
+};
 
 export type CampaignRecord = {
   id: string;
@@ -34,6 +45,19 @@ export type CampaignRecord = {
   allowedOrigins: string[];
   campaignActive: boolean;
   storeActive: boolean;
+  illustrative: IllustrativeConfig | null;
+};
+
+/** Valor ilustrativo gravado no lead pelo banco (ISO 8601 nas datas). */
+export type StoredIllustrativeValue = {
+  amountCents: number;
+  presentedAt: string;
+  expiresAt: string;
+};
+
+export type StoredLead = {
+  id: string;
+  illustrative: StoredIllustrativeValue | null;
 };
 
 export type NewLead = {
@@ -43,10 +67,12 @@ export type NewLead = {
 };
 
 export type InsertLeadResult =
-  | { status: "created"; leadId: string }
+  | { status: "created"; lead: StoredLead }
   | { status: "duplicate" }
   | { status: "campaign_unavailable" }
   | { status: "consent_mismatch" }
+  /** CPF com solicitação recente na mesma loja (bloqueio por dias úteis). */
+  | { status: "cpf_cooldown" }
   | { status: "rejected" };
 
 export type PublicLeadsLogEntry = {
@@ -64,7 +90,7 @@ export interface PublicLeadsDeps {
   findCampaignByKey(campaignKey: string): Promise<CampaignRecord | null>;
   isOriginAllowedForAnyCampaign(origin: string): Promise<boolean>;
   insertLead(lead: NewLead): Promise<InsertLeadResult>;
-  findLeadIdBySubmission(campaignId: string, clientSubmissionId: string): Promise<string | null>;
+  findLeadBySubmission(campaignId: string, clientSubmissionId: string): Promise<StoredLead | null>;
   /** Origens extras aceitas fora de produção (ver PUBLIC_LEADS_DEV_ORIGINS). */
   devOrigins: readonly string[];
   rateLimiter: RateLimiter | null;
@@ -133,9 +159,45 @@ const STATUS_BY_CODE: Record<PublicLeadErrorCode, number> = {
   ORIGIN_NOT_ALLOWED: 403,
   CAMPAIGN_UNAVAILABLE: 404,
   PAYLOAD_TOO_LARGE: 413,
+  CPF_COOLDOWN: 409,
   TOO_MANY_REQUESTS: 429,
   INTERNAL_ERROR: 500,
 };
+
+/**
+ * Corpo de sucesso (201/200). `simulation` só existe em campanhas com valor
+ * ilustrativo: o MESMO valor e a MESMA validade gravados no lead, também num
+ * reenvio. `serverTime` deixa a LP corrigir a diferença do relógio do aparelho.
+ * `kind` é sempre "ILLUSTRATIVE": não é decisão de crédito.
+ */
+function successBody(lead: StoredLead, now: Date) {
+  return {
+    success: true,
+    leadId: lead.id,
+    ...(lead.illustrative
+      ? {
+          simulation: {
+            kind: "ILLUSTRATIVE" as const,
+            amountCents: lead.illustrative.amountCents,
+            presentedAt: lead.illustrative.presentedAt,
+            expiresAt: lead.illustrative.expiresAt,
+            serverTime: now.toISOString(),
+          },
+        }
+      : {}),
+  };
+}
+
+/** Honeypot: resposta com a mesma forma de um sucesso real, sem nada gravado. */
+function fakeIllustrative(config: IllustrativeConfig | null, now: Date): StoredIllustrativeValue | null {
+  if (!config) return null;
+  const steps = (config.maxCents - config.minCents) / config.stepCents + 1;
+  return {
+    amountCents: config.minCents + Math.floor(Math.random() * steps) * config.stepCents,
+    presentedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + config.validityHours * 3_600_000).toISOString(),
+  };
+}
 
 // ---------------------------------------------------------------------
 // Corpo da requisição com limite de tamanho
@@ -298,7 +360,9 @@ export function createPublicLeadsHandler(deps: PublicLeadsDeps) {
 
       // 7. Honeypot: finge sucesso e não salva nada.
       if (typeof json.website === "string" && json.website.trim() !== "") {
-        return finish(201, { success: true, leadId: deps.newFakeLeadId() }, "HONEYPOT");
+        const now = deps.now();
+        const fake = { id: deps.newFakeLeadId(), illustrative: fakeIllustrative(campaign.illustrative, now) };
+        return finish(201, successBody(fake, now), "HONEYPOT");
       }
 
       // 8. Validação completa.
@@ -311,16 +375,20 @@ export function createPublicLeadsHandler(deps: PublicLeadsDeps) {
         return fail("INVALID_PAYLOAD", { fields: ["consent.version"] });
       }
 
-      // 10. INSERT (idempotente por campaign_id + client_submission_id).
+      // 10. INSERT (idempotente por campaign_id + client_submission_id; o
+      //     banco aplica o bloqueio de CPF e define o valor ilustrativo).
       const result = await deps.insertLead({ campaignId: campaign.id, storeId: campaign.storeId, payload });
       switch (result.status) {
         case "created":
-          return finish(201, { success: true, leadId: result.leadId }, "CREATED");
+          return finish(201, successBody(result.lead, deps.now()), "CREATED");
         case "duplicate": {
-          const leadId = await deps.findLeadIdBySubmission(campaign.id, payload.clientSubmissionId);
-          if (!leadId) return fail("INTERNAL_ERROR");
-          return finish(200, { success: true, leadId }, "DUPLICATE");
+          // Reenvio do mesmo pedido: devolve o lead original (mesmo valor e validade).
+          const lead = await deps.findLeadBySubmission(campaign.id, payload.clientSubmissionId);
+          if (!lead) return fail("INTERNAL_ERROR");
+          return finish(200, successBody(lead, deps.now()), "DUPLICATE");
         }
+        case "cpf_cooldown":
+          return fail("CPF_COOLDOWN");
         case "campaign_unavailable":
           return fail("CAMPAIGN_UNAVAILABLE");
         case "consent_mismatch":

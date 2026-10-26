@@ -26,6 +26,20 @@ stores ──< campaigns ──< leads ──< lead_notes
 - **`consent_at = now()`** e **`status = NEW`** na criação, ignorando o que for enviado.
 - Lead é rejeitado se a campanha ou a loja estiver inativa (`KL002`) ou se `consent_version` for diferente da campanha (`KL003`). Campanha inexistente: `KL001`.
 - `store_id`, `campaign_id`, `client_submission_id`, `consent_version`, `consent_at` e `created_at` são imutáveis (`KL004`).
+- **Bloqueio de CPF e valor ilustrativo** (migration `20261026120000_cpf_cooldown_illustrative_value`, regras por campanha): o trigger
+  de INSERT recusa com `KL005` (API: `409 CPF_COOLDOWN`) o CPF com bloqueio vigente na mesma loja, consultando o registro
+  `private.cpf_cooldowns` (loja + HMAC-SHA256 do CPF com a chave `private.secrets` + fim do bloqueio; sem CPF legível, sem
+  GRANT para ninguém, nem `service_role`; vencidos saem por `private.purge_expired_cpf_cooldowns()` a cada novo lead e na
+  limpeza diária do pg_cron — migration `20261027120000`, job `kapa_purge_expired_cpf_cooldowns`, 06:17 UTC). O registro
+  **sobrevive à exclusão do lead**. Pedidos do titular (só SUPER_ADMIN, motivo + identidade verificada, auditados sem CPF em
+  `public.lgpd_cpf_cooldown_releases`): `lgpd_cpf_cooldown_lookup(cpf)`, `lgpd_release_cpf_cooldown(loja, cpf, motivo, true)`
+  (com ou sem lead) e `delete_lead(lead, true, true)`; outros → `KL011`, entrada inválida → `22023`. Trava `pg_advisory_xact_lock` por loja + CPF; o reenvio do mesmo pedido (lead existente) passa e cai na
+  UNIQUE. Grava também `leads.cpf_cooldown_until` (informativo; 00:00 de Brasília após N dias úteis do DF —
+  `private.cpf_cooldown_end`) e o valor ilustrativo com a validade (`illustrative_amount_cents/_presented_at/_expires_at`).
+  Tudo imutável (`KL004`); `authenticated` lê só as colunas `illustrative_*`. `KL006`: chave do HMAC ausente.
+  Regras e exemplos: [`integracao-landing-page.md` §5.1–5.2](integracao-landing-page.md#51-bloqueio-de-cpf-por-dias-úteis-por-campanha-hoje-só-fábrica-de-aprovação--rcar).
+  Feriado novo/extraordinário → nova migration (`private.is_df_holiday`). Rollback:
+  `supabase/rollbacks/20261026120000_cpf_cooldown_illustrative_value.down.sql`.
 - CPF validado com dígitos verificadores (CHECK). Idade mínima e demais validações ficam na API (Fase 3).
 - Responsável só muda por `assign_lead()` (Fase 9); erros: `KL010` lead fora do alcance, `KL011` sem permissão, `KL012` lead já
   tem outro responsável, `KL013` responsável não é membro ativo da loja.
@@ -60,7 +74,8 @@ RLS é habilitado explicitamente em todas as tabelas pelas migrations.
 Fase 9: `leads_update` e `lead_notes_insert` (SDR só no próprio lead) e `lead_events_select` (`CPF_REVEALED` só gerente/KAPA). Rollback da Fase 9:
 `supabase/rollbacks/20261014120000_lead_assignment_cpf_kpis.down.sql`.
 
-**Excluir lead** (migration `20261016120000_delete_lead`): `delete_lead(lead)`, SECURITY DEFINER, `EXECUTE` só para `authenticated`.
+**Excluir lead** (migration `20261016120000_delete_lead`; desde `20261026120000`: `delete_lead(lead, p_release_cpf_cooldown default false)`,
+chamadas antigas continuam válidas): SECURITY DEFINER, `EXECUTE` só para `authenticated`.
 SUPER_ADMIN ativo: qualquer lead; STORE_ADMIN ativo: só da própria loja; SDR: nunca (`KL011`). Outra loja, usuário ou vínculo inativo,
 lead inexistente: `KL010`. Trava a linha (`FOR UPDATE`) e apaga lead + observações + histórico (cascade). Não fica registro da exclusão.
 Rollback: `supabase/rollbacks/20261016120000_delete_lead.down.sql` (só remove a função; leads excluídos não voltam).

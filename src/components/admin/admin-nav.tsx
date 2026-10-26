@@ -1,13 +1,13 @@
 "use client";
 
-import { Building2, Inbox, LayoutDashboard, Megaphone, Menu, Store, Users, X } from "lucide-react";
+import { Building2, Inbox, LayoutDashboard, Megaphone, Menu, ShieldCheck, Store, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { BrandMark } from "@/components/ui/icons";
 
-export type NavItem = { href: string; label: string; icon: "dashboard" | "leads" | "store" | "stores" | "campaigns" | "users" };
+export type NavItem = { href: string; label: string; icon: "dashboard" | "leads" | "store" | "stores" | "campaigns" | "users" | "privacy" };
 export type NavSection = { title?: string; items: NavItem[] };
 
 const ICONS = {
@@ -17,6 +17,7 @@ const ICONS = {
   stores: Building2,
   campaigns: Megaphone,
   users: Users,
+  privacy: ShieldCheck,
 };
 
 function isActive(pathname: string, href: string) {
