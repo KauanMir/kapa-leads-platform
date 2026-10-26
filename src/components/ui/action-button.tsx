@@ -32,8 +32,8 @@ export function ActionButton({
 
   if (confirming) {
     return (
-      <span className="inline-flex flex-wrap items-center gap-2">
-        <span className="text-sm">{confirmMessage}</span>
+      <span className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-danger/20 bg-danger-soft/70 py-1.5 pl-3 pr-1.5">
+        <span className="text-sm font-medium text-foreground">{confirmMessage}</span>
         <button type="button" onClick={run} className={buttonClasses({ variant: "danger", size: "sm" })}>
           Confirmar
         </button>

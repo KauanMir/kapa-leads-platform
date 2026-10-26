@@ -37,10 +37,10 @@ export function NoteForm({ leadId }: { leadId: string }) {
         aria-invalid={error ? true : undefined}
         aria-describedby="note-body-help"
         placeholder="Escreva uma observação… Ex.: cliente pediu retorno às 15h."
-        className="resize-y bg-surface-muted focus:bg-surface"
+        className="min-h-[88px] resize-y bg-surface-muted text-[14px] focus:bg-surface"
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p id="note-body-help" className="text-[13px] text-muted">
+        <p id="note-body-help" className="text-xs text-muted">
           {length > MAX - 500 ? `${length}/${MAX} · ` : null}Não pode ser editada depois.
         </p>
         <SubmitButton pendingLabel="Salvando…" size="sm">

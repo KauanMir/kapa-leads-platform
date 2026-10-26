@@ -62,7 +62,7 @@ export function DeleteLead({
         onCancel={(event) => {
           if (pending) event.preventDefault();
         }}
-        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl bg-surface p-0 text-foreground shadow-xl ring-1 ring-line backdrop:bg-black/50"
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-line bg-surface p-0 text-foreground shadow-overlay backdrop:bg-foreground/40 backdrop:backdrop-blur-[2px]"
       >
         <div className="p-6">
           <div className="flex items-start gap-4">
@@ -81,7 +81,7 @@ export function DeleteLead({
           </div>
 
           {hasCooldown && canReleaseCpfCooldown ? (
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-muted px-4 py-3 text-sm">
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface-muted px-4 py-3 text-sm">
               <input
                 type="checkbox"
                 name="release-cpf-cooldown"
@@ -98,7 +98,7 @@ export function DeleteLead({
           ) : null}
 
           {releasing ? (
-            <label className="mt-2 flex cursor-pointer items-start gap-3 rounded-xl border border-danger/30 bg-danger-soft/60 px-4 py-3 text-sm">
+            <label className="mt-2 flex cursor-pointer items-start gap-3 rounded-lg border border-danger/25 bg-danger-soft/60 px-4 py-3 text-sm">
               <input
                 type="checkbox"
                 name="identity-verified"
@@ -112,12 +112,12 @@ export function DeleteLead({
           ) : null}
 
           {error ? (
-            <p role="alert" className="mt-4 rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+            <p role="alert" className="mt-4 rounded-lg border border-danger/25 bg-danger-soft px-4 py-3 text-sm text-danger">
               {error}
             </p>
           ) : null}
 
-          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <div className="-mx-6 -mb-6 mt-6 flex flex-col-reverse gap-2 border-t border-line bg-surface-muted px-6 py-4 sm:flex-row sm:justify-end">
             <Button variant="secondary" disabled={pending} onClick={() => dialogRef.current?.close()} autoFocus>
               Cancelar
             </Button>

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/field";
+import { CheckboxCard, FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/field";
 import { FormMessage, fieldError } from "@/components/ui/form-message";
 import { SubmitButton } from "@/components/ui/submit-button";
 import type { FormState } from "@/lib/actions/types";
@@ -118,12 +118,11 @@ export function CampaignForm({
         <FieldError>{err("formSchema")}</FieldError>
       </div>
 
-      <label className="flex items-center gap-2 text-[15px]">
-        <input type="checkbox" name="isActive" defaultChecked={defaults.isActive} className="size-4 accent-accent" />
-        Campanha ativa (recebe leads)
-      </label>
+      <CheckboxCard name="isActive" defaultChecked={defaults.isActive}>
+        <span className="font-medium">Campanha ativa (recebe leads)</span>
+      </CheckboxCard>
 
-      <div>
+      <div className="flex border-t border-line pt-5">
         <SubmitButton>{submitLabel}</SubmitButton>
       </div>
     </form>

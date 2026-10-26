@@ -25,10 +25,10 @@ export function PhoneActions({ phone, leadName, storeName, summary }: { phone: s
     setTimeout(() => setCopied(null), 3000);
   }
 
-  const big = "h-12 flex-1 basis-44 sm:flex-none sm:px-6";
+  const big = "h-12 flex-1 basis-40 sm:flex-none sm:px-5";
   return (
     <div>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-2.5">
         <a href={whatsappUrl(phone, message)} target="_blank" rel="noopener noreferrer" className={buttonClasses({ variant: "whatsapp", size: "lg", className: big })}>
           <WhatsAppIcon className="size-5" />
           WHATSAPP

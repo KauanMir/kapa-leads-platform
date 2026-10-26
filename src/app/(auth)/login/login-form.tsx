@@ -42,11 +42,11 @@ export function LoginForm({ notice }: { notice: string | null }) {
         />
       </div>
 
-      <SubmitButton size="lg" pendingLabel="Entrando…" className="w-full tracking-wide">
+      <SubmitButton size="lg" pendingLabel="Entrando…" className="mt-1 w-full tracking-wide">
         ENTRAR
       </SubmitButton>
 
-      <p className="text-center text-sm text-muted">Esqueceu a senha? Fale com o administrador da KAPA.</p>
+      <p className="text-center text-[13px] text-muted">Esqueceu a senha? Fale com o administrador da KAPA.</p>
     </form>
   );
 }

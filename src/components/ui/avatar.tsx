@@ -35,7 +35,10 @@ function toneFor(name: string): string {
 
 export function Avatar({ name, size = "md", className = "" }: { name: string; size?: keyof typeof SIZES; className?: string }) {
   return (
-    <span aria-hidden="true" className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold ${SIZES[size]} ${toneFor(name)} ${className}`}>
+    <span
+      aria-hidden="true"
+      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold tracking-tight ring-1 ring-inset ring-black/[0.04] ${SIZES[size]} ${toneFor(name)} ${className}`}
+    >
       {initials(name)}
     </span>
   );

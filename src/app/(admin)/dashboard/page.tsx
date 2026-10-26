@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronRight, Inbox, UserRoundX, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight, ChevronRight, Inbox, UserRoundX, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -9,7 +9,7 @@ import { LeadsTable } from "@/components/leads/leads-table";
 import { STATUS_DOTS } from "@/components/leads/status-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { buttonClasses } from "@/components/ui/button";
-import { Card, CardHeader, PageHeader } from "@/components/ui/card";
+import { Card, CardHeader, PageHeader, TABLE_HEAD } from "@/components/ui/card";
 import { listCampaigns } from "@/lib/admin/config";
 import { filtersToQuery, parseUrlFilters, toLeadFilters, type AssigneeFilter } from "@/lib/admin/filters";
 import { EMPTY_BLOCK, summarizeKpis } from "@/lib/admin/kpis";
@@ -29,25 +29,38 @@ const n = (value: number) => value.toLocaleString("pt-BR");
 
 type StatusRow = { status: LeadStatus; label: string; value: number; href: string };
 
-/** Contagem por status: barra de proporção + uma linha clicável por status. */
+const pct = (value: number, total: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
+
+/** Contagem por status: barra de proporção + um bloco clicável por status. */
 function StatusBreakdown({ title, rows }: { title: string; rows: StatusRow[] }) {
   const total = rows.reduce((sum, row) => sum + row.value, 0);
   return (
-    <Card className="flex flex-col p-5">
-      <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
-      <div aria-hidden="true" className="mt-4 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-line/70">
+    <Card className="flex flex-col">
+      <div className="flex items-baseline justify-between gap-3 px-4 pt-4 sm:px-5">
+        <h2 className="text-[15px] font-semibold tracking-tight">{title}</h2>
+        <p className="num text-[13px] text-muted">{total === 1 ? "1 lead" : `${n(total)} leads`}</p>
+      </div>
+      <div aria-hidden="true" className="mx-4 mt-3 flex h-2 gap-[3px] overflow-hidden rounded-full bg-surface-sunken sm:mx-5">
         {total > 0
-          ? rows.map((row) => (row.value > 0 ? <span key={row.status} className={STATUS_DOTS[row.status]} style={{ width: `${(row.value / total) * 100}%` }} /> : null))
+          ? rows.map((row) => (row.value > 0 ? <span key={row.status} className={`rounded-full ${STATUS_DOTS[row.status]}`} style={{ width: `${(row.value / total) * 100}%` }} /> : null))
           : null}
       </div>
-      <ul className="mt-3 divide-y divide-line">
+      <ul className="mt-3 grid flex-1 grid-cols-1 divide-y divide-line border-t border-line sm:grid-cols-5 sm:divide-x sm:divide-y-0">
         {rows.map((row) => (
-          <li key={row.status}>
-            <Link href={row.href} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-surface-muted">
-              <span aria-hidden="true" className={`size-2.5 rounded-full ${STATUS_DOTS[row.status]}`} />
-              <span className="flex-1 text-[15px] font-medium">{row.label}</span>
-              <span className="text-lg font-semibold tabular-nums">{n(row.value)}</span>
-              <ChevronRight aria-hidden="true" className="size-4 text-line-strong group-hover:text-muted" />
+          <li key={row.status} className="flex">
+            <Link
+              href={row.href}
+              className="group flex flex-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-muted sm:flex-col sm:items-start sm:justify-between sm:gap-1.5 sm:py-3.5"
+            >
+              <span className="flex flex-1 items-center gap-2 text-[14px] font-medium text-foreground-soft sm:flex-none sm:items-start sm:text-[13px] sm:leading-tight">
+                <span aria-hidden="true" className={`size-2 shrink-0 rounded-full sm:mt-[3px] ${STATUS_DOTS[row.status]}`} />
+                {row.label}
+              </span>
+              <span className="flex items-baseline gap-2">
+                <span className={`num text-lg font-semibold tracking-tight sm:text-[28px] sm:leading-9 ${row.value ? "" : "text-subtle"}`}>{n(row.value)}</span>
+                <span className="num text-xs text-subtle">{pct(row.value, total)}%</span>
+              </span>
+              <ChevronRight aria-hidden="true" className="size-4 text-line-strong group-hover:text-muted sm:hidden" />
             </Link>
           </li>
         ))}
@@ -56,46 +69,51 @@ function StatusBreakdown({ title, rows }: { title: string; rows: StatusRow[] }) 
   );
 }
 
-/** Número principal (destaque em azul). */
+/** Número principal (leads recebidos / meus leads). */
 function HeroStat({ label, value, href, cta }: { label: string; value: number; href: string; cta: string }) {
   return (
-    <Link
-      href={href}
-      className="group relative flex flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-[#2a5cf0] to-[#1838a8] p-4 text-white shadow-raised sm:p-5"
-    >
-      <span aria-hidden="true" className="absolute -right-10 -top-12 size-40 rounded-full bg-white/10" />
-      <span aria-hidden="true" className="absolute -bottom-16 right-10 size-32 rounded-full bg-white/[0.06]" />
-      <span className="relative flex items-center gap-2 text-sm font-medium text-white/80">
-        <Inbox aria-hidden="true" className="size-4" />
-        {label}
+    <Link href={href} className="group flex flex-col rounded-xl border border-line bg-surface p-4 shadow-card transition-colors hover:border-line-strong sm:p-5">
+      <span className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-[13px] font-medium text-muted">
+          <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-lg bg-accent-soft text-accent">
+            <Inbox className="size-4" />
+          </span>
+          {label}
+        </span>
+        <ArrowUpRight aria-hidden="true" className="hidden size-4 shrink-0 text-subtle transition-colors group-hover:text-accent sm:block" />
       </span>
-      <span className="relative mt-3 text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{n(value)}</span>
-      <span className="relative mt-auto flex items-center gap-1 pt-5 text-sm font-semibold text-white/90 group-hover:text-white">
+      <span className="num mt-3 text-[34px] font-semibold leading-none tracking-tight sm:text-[40px]">{n(value)}</span>
+      <span className="mt-auto flex items-center gap-1 pt-4 text-[13px] font-semibold text-accent">
         {cta}
-        <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" />
+        <ArrowRight aria-hidden="true" className="size-3.5 transition-transform group-hover:translate-x-0.5" />
       </span>
     </Link>
   );
 }
 
-/** Fila sem responsável: âmbar quando há leads esperando. */
+/** Fila sem responsável: destaque âmbar quando há leads esperando. */
 function QueueStat({ label, value, href, hint }: { label: string; value: number; href: string; hint: string }) {
   const waiting = value > 0;
   return (
     <Link
       href={href}
-      className={`group flex flex-col rounded-2xl border p-4 shadow-card transition-colors sm:p-5 ${
-        waiting ? "border-amber-200 bg-warning-soft hover:border-amber-300" : "border-line bg-surface hover:border-line-strong"
+      className={`group flex flex-col rounded-xl border bg-surface p-4 shadow-card transition-colors sm:p-5 ${
+        waiting ? "border-warning-line hover:border-amber-300" : "border-line hover:border-line-strong"
       }`}
     >
-      <span className={`flex items-center gap-2 text-sm font-medium ${waiting ? "text-warning" : "text-muted"}`}>
-        <UserRoundX aria-hidden="true" className="size-4" />
-        {label}
+      <span className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-[13px] font-medium text-muted">
+          <span aria-hidden="true" className={`flex size-7 items-center justify-center rounded-lg ${waiting ? "bg-warning-soft text-warning" : "bg-surface-sunken text-subtle"}`}>
+            <UserRoundX className="size-4" />
+          </span>
+          {label}
+        </span>
+        <ArrowUpRight aria-hidden="true" className="hidden size-4 shrink-0 text-subtle transition-colors group-hover:text-foreground sm:block" />
       </span>
-      <span className="mt-3 text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{n(value)}</span>
-      <span className={`mt-auto flex items-center gap-1 pt-6 text-sm font-semibold ${waiting ? "text-warning" : "text-muted"}`}>
+      <span className={`num mt-3 text-[34px] font-semibold leading-none tracking-tight sm:text-[40px] ${waiting ? "text-warning" : ""}`}>{n(value)}</span>
+      <span className={`mt-auto flex items-center gap-1 pt-4 text-[13px] font-semibold ${waiting ? "text-warning" : "text-muted"}`}>
         {waiting ? hint : "Nenhum lead esperando"}
-        {waiting ? <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" /> : null}
+        {waiting ? <ArrowRight aria-hidden="true" className="size-3.5 transition-transform group-hover:translate-x-0.5" /> : null}
       </span>
     </Link>
   );
@@ -158,8 +176,11 @@ async function DashboardContent(props: PageProps<"/dashboard">) {
         showStatus={false}
       />
 
-      <section aria-label={manager ? "Indicadores da loja" : "Meus indicadores"} className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+      <section
+        aria-label={manager ? "Indicadores da loja" : "Meus indicadores"}
+        className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+      >
+        <div className="grid grid-cols-2 gap-4">
           {manager ? (
             <HeroStat label="Leads recebidos" value={kpis.total} href={leadsHref({ assignee: "todos" })} cta="Ver leads" />
           ) : (
@@ -172,26 +193,24 @@ async function DashboardContent(props: PageProps<"/dashboard">) {
             hint={manager ? "Distribuir" : "Leads para assumir"}
           />
         </div>
-        <div className="lg:col-span-2">
-          <StatusBreakdown title={manager ? "Leads por status" : "Meus leads por status"} rows={statusRows} />
-        </div>
+        <StatusBreakdown title={manager ? "Leads por status" : "Meus leads por status"} rows={statusRows} />
       </section>
 
       {manager ? (
-        <Card className="mt-6 overflow-hidden">
+        <Card className="mt-5 overflow-hidden">
           <CardHeader icon={<Users />} title="Equipe" description="Leads de cada SDR no período." />
           {teamRows.length === 0 ? (
             <p className="px-5 py-6 text-sm text-muted">Nenhum SDR com leads no período.</p>
           ) : (
             <>
-              <div className="hidden md:block">
+              <div className="hidden lg:block">
                 <table className="w-full text-left text-sm">
-                  <thead className="border-b border-line bg-surface-muted text-[11px] uppercase tracking-[0.06em] text-muted">
+                  <thead className={TABLE_HEAD}>
                     <tr>
-                      <th scope="col" className="py-3 pl-5 pr-4 font-semibold">SDR</th>
-                      <th scope="col" className="px-4 py-3 text-right font-semibold">Atribuídos</th>
+                      <th scope="col" className="py-2.5 pl-5 pr-4 font-medium">SDR</th>
+                      <th scope="col" className="px-4 py-2.5 text-right font-medium">Atribuídos</th>
                       {LEAD_STATUSES.map((status) => (
-                        <th key={status} scope="col" className="px-4 py-3 text-right font-semibold">
+                        <th key={status} scope="col" className="px-4 py-2.5 text-right font-medium">
                           <span className="inline-flex items-center gap-1.5">
                             <span aria-hidden="true" className={`size-1.5 rounded-full ${STATUS_DOTS[status]}`} />
                             {STATUS_LABELS[status]}
@@ -204,40 +223,43 @@ async function DashboardContent(props: PageProps<"/dashboard">) {
                     {teamRows.map((member) => {
                       const block = kpis.byAssignee.get(member.userId) ?? EMPTY_BLOCK;
                       return (
-                        <tr key={member.userId} className="hover:bg-surface-muted/70">
+                        <tr key={member.userId} className="group relative transition-colors hover:bg-surface-muted">
                           <th scope="row" className="py-3 pl-5 pr-4 font-semibold">
-                            <Link href={leadsHref({ assignee: member.userId })} className="inline-flex items-center gap-3 hover:text-accent">
+                            <Link
+                              href={leadsHref({ assignee: member.userId })}
+                              className="inline-flex items-center gap-3 after:absolute after:inset-0 group-hover:text-accent"
+                            >
                               <Avatar name={member.fullName} size="sm" />
                               {member.fullName}
                               {member.isActive ? null : <span className="font-normal text-muted">(inativo)</span>}
                             </Link>
                           </th>
-                          <td className="px-4 py-3 text-right text-[15px] font-semibold tabular-nums">{n(block.total)}</td>
+                          <td className="num px-4 py-3 text-right text-[15px] font-semibold">{n(block.total)}</td>
                           {LEAD_STATUSES.map((status) => (
-                            <td key={status} className={`px-4 py-3 text-right tabular-nums ${block.byStatus[status] ? "" : "text-line-strong"}`}>
+                            <td key={status} className={`num px-4 py-3 text-right ${block.byStatus[status] ? "text-foreground-soft" : "text-line-strong"}`}>
                               {n(block.byStatus[status])}
                             </td>
                           ))}
                         </tr>
                       );
                     })}
-                    <tr className="bg-surface-muted/50">
+                    <tr className="group relative bg-surface-muted/60 transition-colors hover:bg-surface-muted">
                       <th scope="row" className="py-3 pl-5 pr-4 font-medium text-muted">
-                        <Link href={leadsHref({ assignee: "sem" })} className="inline-flex items-center gap-3 hover:text-accent">
-                          <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-line-strong">
+                        <Link href={leadsHref({ assignee: "sem" })} className="inline-flex items-center gap-3 after:absolute after:inset-0 group-hover:text-accent">
+                          <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-line-strong bg-surface">
                             <UserRoundX className="size-4" />
                           </span>
                           Sem responsável
                         </Link>
                       </th>
-                      <td className="px-4 py-3 text-right text-[15px] font-semibold tabular-nums">{n(kpis.unassigned)}</td>
+                      <td className={`num px-4 py-3 text-right text-[15px] font-semibold ${kpis.unassigned ? "text-warning" : ""}`}>{n(kpis.unassigned)}</td>
                       <td colSpan={LEAD_STATUSES.length} />
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              <ul className="divide-y divide-line md:hidden">
+              <ul className="divide-y divide-line lg:hidden">
                 {teamRows.map((member) => {
                   const block = kpis.byAssignee.get(member.userId) ?? EMPTY_BLOCK;
                   return (
@@ -249,13 +271,14 @@ async function DashboardContent(props: PageProps<"/dashboard">) {
                             {member.fullName}
                             {member.isActive ? null : <span className="font-normal text-muted"> (inativo)</span>}
                           </span>
-                          <span className="text-lg font-semibold tabular-nums">{n(block.total)}</span>
+                          <span className="num text-lg font-semibold">{n(block.total)}</span>
+                          <ChevronRight aria-hidden="true" className="size-4 text-line-strong" />
                         </span>
                         <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 pl-11 text-[13px] text-muted">
                           {LEAD_STATUSES.map((status) => (
-                            <span key={status} className="inline-flex items-center gap-1.5">
-                              <span aria-hidden="true" className={`size-1.5 rounded-full ${STATUS_DOTS[status]}`} />
-                              {STATUS_LABELS[status]} <span className="font-semibold text-foreground tabular-nums">{n(block.byStatus[status])}</span>
+                            <span key={status} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${STATUS_DOTS[status]}`} />
+                              {STATUS_LABELS[status]} <span className="num font-semibold text-foreground">{n(block.byStatus[status])}</span>
                             </span>
                           ))}
                         </span>
@@ -264,12 +287,13 @@ async function DashboardContent(props: PageProps<"/dashboard">) {
                   );
                 })}
                 <li>
-                  <Link href={leadsHref({ assignee: "sem" })} className="flex items-center gap-3 px-4 py-3.5 text-muted active:bg-surface-muted">
-                    <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-line-strong">
+                  <Link href={leadsHref({ assignee: "sem" })} className="flex items-center gap-3 bg-surface-muted/60 px-4 py-3.5 text-muted active:bg-surface-muted">
+                    <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-line-strong bg-surface">
                       <UserRoundX className="size-4" />
                     </span>
                     <span className="flex-1 font-medium">Sem responsável</span>
-                    <span className="text-lg font-semibold tabular-nums text-foreground">{n(kpis.unassigned)}</span>
+                    <span className={`num text-lg font-semibold ${kpis.unassigned ? "text-warning" : "text-foreground"}`}>{n(kpis.unassigned)}</span>
+                    <ChevronRight aria-hidden="true" className="size-4 text-line-strong" />
                   </Link>
                 </li>
               </ul>
@@ -278,7 +302,7 @@ async function DashboardContent(props: PageProps<"/dashboard">) {
         </Card>
       ) : null}
 
-      <Card className="mt-6 overflow-hidden">
+      <Card className="mt-5 overflow-hidden">
         <CardHeader
           icon={<Inbox />}
           title={manager ? "Leads mais recentes" : "Meus leads mais recentes"}

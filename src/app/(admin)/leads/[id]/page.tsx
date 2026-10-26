@@ -1,6 +1,5 @@
-import { ArrowLeft, ArrowLeftRight, CalendarClock, CarFront, ClipboardList, History, Lock, Megaphone, Store, UserRound, Wallet } from "lucide-react";
+import { ArrowLeftRight, CalendarClock, CarFront, ClipboardList, History, Lock, Megaphone, Store, UserRound, Wallet } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 
 import { NotFoundPanel } from "@/components/admin/not-found-panel";
@@ -16,7 +15,7 @@ import { StatusBadge } from "@/components/leads/status-badge";
 import { StatusSelect } from "@/components/leads/status-select";
 import { Timeline } from "@/components/leads/timeline";
 import { Avatar } from "@/components/ui/avatar";
-import { Card, CardHeader } from "@/components/ui/card";
+import { BackLink, Card, CardHeader } from "@/components/ui/card";
 import { getLeadDetail, getLeadHistory } from "@/lib/admin/leads";
 import { assignableMembers, getStoreTeam, teamNames } from "@/lib/admin/team";
 import { buildTimeline } from "@/lib/admin/timeline";
@@ -35,7 +34,7 @@ const HIGHLIGHT_ICONS: Record<SimulationHighlight["key"], typeof CarFront> = { d
 
 function Chip({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1 text-[13px] font-medium text-muted ring-1 ring-inset ring-line [&>svg]:size-3.5 [&>svg]:shrink-0">
+    <span className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-md bg-surface-muted px-2 text-[13px] font-medium text-muted ring-1 ring-inset ring-line [&>svg]:size-3.5 [&>svg]:shrink-0">
       {icon}
       <span className="truncate">{children}</span>
     </span>
@@ -45,9 +44,9 @@ function Chip({ icon, children }: { icon: ReactNode; children: ReactNode }) {
 /** Valores que a LP mostrou ao cliente no envio (salvos no lead; nada é recalculado aqui). */
 function PresentedSimulationBlock({ simulation }: { simulation: PresentedSimulation }) {
   return (
-    <section aria-labelledby="presented-simulation" className="overflow-hidden rounded-xl ring-1 ring-inset ring-line">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line bg-surface-muted px-4 py-3">
-        <h3 id="presented-simulation" className="text-xs font-semibold uppercase tracking-wider text-muted">
+    <section aria-labelledby="presented-simulation" className="overflow-hidden rounded-lg border border-line">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line bg-surface-muted px-4 py-2.5">
+        <h3 id="presented-simulation" className="text-[13px] font-semibold text-foreground-soft">
           Simulação apresentada
         </h3>
         <p className="text-xs text-muted">Valores mostrados ao cliente no envio</p>
@@ -56,24 +55,24 @@ function PresentedSimulationBlock({ simulation }: { simulation: PresentedSimulat
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <dt className="text-[13px] font-medium text-muted">Valor estimado a financiar</dt>
-            <dd className="mt-1 text-xl font-semibold tracking-tight tabular-nums">{simulation.financed}</dd>
+            <dd className="num mt-0.5 text-xl font-semibold tracking-tight">{simulation.financed}</dd>
           </div>
           <div>
             <dt className="text-[13px] font-medium text-muted">Taxa de referência</dt>
-            <dd className="mt-1 text-xl font-semibold tracking-tight tabular-nums">{simulation.rate}</dd>
+            <dd className="num mt-0.5 text-xl font-semibold tracking-tight">{simulation.rate}</dd>
           </div>
         </dl>
         <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
           {simulation.options.map((option) => (
             <li
               key={option.term}
-              className={`rounded-lg px-3 py-2.5 ring-1 ring-inset ${option.selected ? "bg-accent-soft ring-accent/25" : "bg-surface ring-line"}`}
+              className={`rounded-lg px-3 py-2.5 ring-1 ring-inset ${option.selected ? "bg-accent-soft ring-accent-line" : "bg-surface ring-line"}`}
             >
               <p className="flex items-center justify-between gap-2">
-                <span className={`text-sm font-semibold ${option.selected ? "text-accent" : ""}`}>{option.label}</span>
-                {option.selected ? <span className="text-[11px] font-medium text-accent">Prazo registrado</span> : null}
+                <span className={`text-sm font-semibold ${option.selected ? "text-accent" : "text-foreground-soft"}`}>{option.label}</span>
+                {option.selected ? <span className="text-[11px] font-semibold text-accent">Prazo registrado</span> : null}
               </p>
-              <p className="mt-0.5 text-[15px] font-semibold tabular-nums">
+              <p className="num mt-0.5 text-[15px] font-semibold">
                 {option.value}
                 <span className="text-sm font-normal text-muted">/mês</span>
               </p>
@@ -126,68 +125,65 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
 
   return (
     <>
-      <Link href="/leads" className="mb-4 inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-muted hover:text-foreground">
-        <ArrowLeft aria-hidden="true" className="size-4" />
-        Leads
-      </Link>
+      <BackLink href="/leads">Leads</BackLink>
 
-      {/* Topo: quem é, telefone, ações, status e responsável. */}
-      <Card className="overflow-hidden">
-        <div className="p-5 sm:p-7">
-          <div className="flex items-start gap-4 sm:gap-5">
-            <Avatar name={lead.fullName} size="lg" className="sm:size-16 sm:text-xl" />
-            <div className="min-w-0 flex-1">
-              <h1 className="break-words text-2xl font-bold leading-tight tracking-tight sm:text-[32px] sm:leading-10">{lead.fullName}</h1>
-              <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight text-foreground/90 sm:text-2xl">{formatPhone(lead.phone)}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {lead.campaignName ? <Chip icon={<Megaphone />}>{lead.campaignName}</Chip> : null}
-                {showStore && lead.storeName ? <Chip icon={<Store />}>{lead.storeName}</Chip> : null}
-                <Chip icon={<CalendarClock />}>
-                  <time dateTime={lead.createdAt} title={formatDateTime(lead.createdAt)}>
-                    Recebido {formatRelative(lead.createdAt, new Date())}
-                  </time>
-                </Chip>
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="@container flex min-w-0 flex-col gap-5">
+          {/* 1–2. Quem é, telefone e ações; depois status e responsável. */}
+          <Card className="overflow-hidden">
+            <div className="flex flex-col gap-5 p-5 sm:p-6 @3xl:flex-row @3xl:items-start @3xl:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+                <Avatar name={lead.fullName} size="lg" />
+                <div className="min-w-0 flex-1">
+                  <h1 className="break-words text-[22px] font-semibold leading-tight tracking-tight sm:text-[28px] sm:leading-9">{lead.fullName}</h1>
+                  <p className="num mt-0.5 text-lg font-semibold tracking-tight text-foreground-soft sm:text-xl">{formatPhone(lead.phone)}</p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {lead.campaignName ? <Chip icon={<Megaphone />}>{lead.campaignName}</Chip> : null}
+                    {showStore && lead.storeName ? <Chip icon={<Store />}>{lead.storeName}</Chip> : null}
+                    <Chip icon={<CalendarClock />}>
+                      <time dateTime={lead.createdAt} title={formatDateTime(lead.createdAt)}>
+                        Recebido {formatRelative(lead.createdAt, new Date())}
+                      </time>
+                    </Chip>
+                  </div>
+                </div>
+              </div>
+
+              <div className="@3xl:shrink-0">
+                {canWork ? (
+                  <PhoneActions phone={lead.phone} leadName={lead.fullName} storeName={lead.storeName} summary={summary} />
+                ) : (
+                  <p role="note" className="flex max-w-md items-start gap-3 rounded-lg border border-line bg-surface-muted px-4 py-3 text-[14px] font-medium">
+                    <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted" />
+                    {lockedMessage}
+                  </p>
+                )}
               </div>
             </div>
-          </div>
 
-          <div className="mt-6">
-            {canWork ? (
-              <PhoneActions phone={lead.phone} leadName={lead.fullName} storeName={lead.storeName} summary={summary} />
-            ) : (
-              <p role="note" className="flex items-start gap-3 rounded-xl border border-line bg-surface-muted px-4 py-3 font-medium">
-                <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted" />
-                {lockedMessage}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 border-t border-line bg-surface-muted/70 px-5 py-4 sm:grid-cols-2 sm:px-7 sm:py-5">
-          {canWork ? (
-            <StatusSelect leadId={lead.id} status={lead.status} />
-          ) : (
-            <div>
-              <p className="mb-1.5 text-[13px] font-medium text-muted">Status</p>
-              <div className="flex h-11 items-center">
-                <StatusBadge status={lead.status} size="lg" />
-              </div>
+            <div className="grid grid-cols-1 gap-4 border-t border-line bg-surface-muted/70 px-5 py-4 sm:grid-cols-2 sm:px-6">
+              {canWork ? (
+                <StatusSelect leadId={lead.id} status={lead.status} />
+              ) : (
+                <div>
+                  <p className="mb-1.5 text-[13px] font-medium text-muted">Status</p>
+                  <div className="flex h-11 items-center">
+                    <StatusBadge status={lead.status} size="lg" />
+                  </div>
+                </div>
+              )}
+              <AssigneeCard
+                leadId={lead.id}
+                assignedTo={lead.assignedTo}
+                assigneeName={assigneeName}
+                currentUserId={context.userId}
+                canManage={canManage}
+                options={assigneeOptions}
+              />
             </div>
-          )}
-          <AssigneeCard
-            leadId={lead.id}
-            assignedTo={lead.assignedTo}
-            assigneeName={assigneeName}
-            currentUserId={context.userId}
-            canManage={canManage}
-            options={assigneeOptions}
-          />
-        </div>
-      </Card>
+          </Card>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <div className="flex flex-col gap-6 lg:col-span-3">
-          {/* Simulação ilustrativa (Fábrica de Aprovação): valor mostrado ao cliente, validade e respostas.
+          {/* 3. Simulação ilustrativa (Fábrica de Aprovação): valor mostrado ao cliente, validade e respostas.
               Substitui o bloco genérico "Simulação" para não repetir as respostas. */}
           {lead.illustrative ? (
             <IllustrativeSimulationCard
@@ -204,24 +200,22 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
             /* Simulação: os números que o vendedor procura primeiro. */
             <Card>
               <CardHeader icon={<ClipboardList />} title="Simulação" />
-              <div className="p-5">
+              <div className="p-4 sm:p-5">
                 {simulation.highlights.length > 0 ? (
-                  <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <dl className="grid grid-cols-1 gap-3 @lg:grid-cols-3">
                     {simulation.highlights.map((item) => {
                       const Icon = HIGHLIGHT_ICONS[item.key];
                       const featured = item.key === "desired";
                       return (
                         <div
                           key={item.key}
-                          className={`rounded-xl p-4 ring-1 ring-inset ${featured ? "bg-accent-soft ring-accent/15" : "bg-surface-muted ring-line"}`}
+                          className={`rounded-lg p-4 ring-1 ring-inset ${featured ? "bg-accent-soft ring-accent-line" : "bg-surface-muted ring-line"}`}
                         >
                           <dt className={`flex items-center gap-1.5 text-[13px] font-medium ${featured ? "text-accent" : "text-muted"}`}>
                             <Icon aria-hidden="true" className="size-3.5" />
                             {item.label}
                           </dt>
-                          <dd className={`mt-1.5 break-words text-xl font-semibold tracking-tight tabular-nums ${item.positive ? "" : "text-muted"}`}>
-                            {item.value}
-                          </dd>
+                          <dd className={`num mt-1.5 break-words text-xl font-semibold tracking-tight ${item.positive ? "" : "text-muted"}`}>{item.value}</dd>
                           {item.detail ? <dd className="text-sm text-muted">{item.detail}</dd> : null}
                         </div>
                       );
@@ -229,7 +223,7 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
                   </dl>
                 ) : null}
                 {presented ? (
-                  <div className={simulation.highlights.length > 0 ? "mt-5" : ""}>
+                  <div className={simulation.highlights.length > 0 ? "mt-4" : ""}>
                     <PresentedSimulationBlock simulation={presented} />
                   </div>
                 ) : null}
@@ -245,10 +239,11 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
             </Card>
           )}
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          {/* 4–5. Dados pessoais e origem do lead. */}
+          <div className="grid grid-cols-1 items-start gap-5 @2xl:grid-cols-2">
             <Card>
               <CardHeader icon={<UserRound />} title="Dados pessoais" />
-              <div className="p-5">
+              <div className="p-4 sm:p-5">
                 <DetailsList
                   items={[
                     { label: "CPF", value: canWork ? <CpfReveal leadId={lead.id} masked={lead.cpfMasked} /> : lead.cpfMasked },
@@ -261,7 +256,7 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
 
             <Card>
               <CardHeader icon={<Megaphone />} title="Campanha e origem" />
-              <div className="p-5">
+              <div className="p-4 sm:p-5">
                 <DetailsList
                   items={[
                     { label: "Campanha", value: lead.campaignName },
@@ -276,23 +271,24 @@ async function LeadDetailContent(props: PageProps<"/leads/[id]">) {
           </div>
         </div>
 
-        <div className="lg:col-span-2">
+        {/* 6. Histórico e observações (coluna lateral em telas largas). */}
+        <aside aria-label="Histórico do lead" className="min-w-0 xl:sticky xl:top-6">
           <Card>
-            <CardHeader icon={<History />} title="Histórico" />
-            <div className="flex flex-col gap-6 p-5">
+            <CardHeader icon={<History />} title="Histórico" description="Observações e alterações do lead" />
+            <div className="flex flex-col gap-6 p-4 sm:p-5">
               {canWork ? <NoteForm leadId={lead.id} /> : null}
               <Timeline items={timeline} />
             </div>
           </Card>
-        </div>
+        </aside>
       </div>
 
-      {/* Ação administrativa e destrutiva, longe das ações do dia a dia. Quem barra de fato é o banco (delete_lead). */}
+      {/* 7. Ação administrativa e destrutiva, longe das ações do dia a dia. Quem barra de fato é o banco (delete_lead). */}
       {canManage ? (
-        <div className="mt-10 flex flex-col items-start gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <section aria-label="Exclusão do lead" className="mt-10 flex flex-col items-start gap-3 rounded-xl border border-dashed border-line-strong px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted">Lead incorreto, duplicado, spam ou teste? A exclusão é permanente.</p>
           <DeleteLead leadId={lead.id} cpfCooldownDays={lead.cpfCooldownBusinessDays} canReleaseCpfCooldown={context.isSuperAdmin} />
-        </div>
+        </section>
       ) : null}
     </>
   );

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { CampaignForm } from "@/components/config/campaign-form";
-import { Card, PageHeader } from "@/components/ui/card";
+import { BackLink, Card, PageHeader } from "@/components/ui/card";
 import { createCampaignAction } from "@/lib/actions/config";
 import { listStores } from "@/lib/admin/config";
 import { getSuperAdminSession } from "@/lib/auth/session";
@@ -19,8 +19,9 @@ async function NewCampaignContent() {
 
   return (
     <>
+      <BackLink href="/config/campanhas">Voltar para campanhas</BackLink>
       <PageHeader title="Nova campanha" description="A chave pública (campaignKey) é gerada automaticamente ao salvar." />
-      <Card className="p-5">
+      <Card className="max-w-4xl p-4 sm:p-6">
         <CampaignForm
           action={createCampaignAction}
           stores={stores.map((store) => ({ id: store.id, name: store.isActive ? store.name : `${store.name} (inativa)` }))}

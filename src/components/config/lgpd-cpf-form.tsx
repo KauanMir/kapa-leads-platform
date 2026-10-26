@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 
-import { FieldError, FieldHint, Input, Label, Select } from "@/components/ui/field";
+import { CheckboxCard, FieldError, FieldHint, Input, Label, Select } from "@/components/ui/field";
 import { FormMessage, fieldError } from "@/components/ui/form-message";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { lookupCpfCooldownAction, releaseCpfCooldownAction } from "@/lib/actions/lgpd";
@@ -67,13 +67,13 @@ export function LgpdCpfForm() {
       {release?.ok ? <FormMessage state={release} /> : null}
 
       {records !== null && records.length === 0 ? (
-        <p role="status" className="rounded-xl border border-line bg-surface-muted px-4 py-3 text-sm">
+        <p role="status" className="rounded-lg border border-line bg-surface-muted px-4 py-3 text-sm">
           Nenhum registro de bloqueio para este CPF. Não há nada a eliminar.
         </p>
       ) : null}
 
       {records !== null && records.length > 0 ? (
-        <form action={releaseAction} className="flex flex-col gap-4 rounded-2xl border border-line p-4 sm:p-5">
+        <form action={releaseAction} className="flex flex-col gap-4 rounded-lg border border-line bg-surface-muted/50 p-4 sm:p-5">
           <input type="hidden" name="cpf" value={cpf} />
           {release && !release.ok ? <FormMessage state={release} /> : null}
 
@@ -81,7 +81,7 @@ export function LgpdCpfForm() {
             <legend className="mb-2 text-sm font-medium">Loja</legend>
             <div className="flex flex-col gap-2">
               {records.map((record) => (
-                <label key={record.storeId} className="flex cursor-pointer items-start gap-3 rounded-xl border border-line px-4 py-3 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
+                <label key={record.storeId} className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-surface px-4 py-3 text-sm transition-colors hover:bg-surface-muted has-[:checked]:border-accent-line has-[:checked]:bg-accent-soft">
                   <input type="radio" name="storeId" value={record.storeId} required className="mt-0.5 size-4 accent-accent" defaultChecked={records.length === 1} />
                   <span>
                     <span className="font-semibold">{record.storeName}</span>
@@ -112,19 +112,15 @@ export function LgpdCpfForm() {
             <FieldError>{fieldError(release, "reason")}</FieldError>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-3 text-sm">
-            <input type="checkbox" name="identityVerified" required className="mt-0.5 size-4 shrink-0 accent-danger" />
-            <span>Confirmo que verifiquei a identidade do titular pelo canal oficial e que o pedido é legítimo.</span>
-          </label>
+          <CheckboxCard name="identityVerified" required tone="danger">
+            Confirmo que verifiquei a identidade do titular pelo canal oficial e que o pedido é legítimo.
+          </CheckboxCard>
           <FieldError>{fieldError(release, "identityVerified")}</FieldError>
 
-          <label className="flex cursor-pointer items-start gap-3 text-sm">
-            <input type="checkbox" name="confirmed" required className="mt-0.5 size-4 shrink-0 accent-danger" />
-            <span>
-              Confirmo a eliminação do registro de bloqueio deste CPF <strong>só na loja escolhida</strong>. Depois disso, o titular
-              poderá fazer uma nova solicitação nessa loja. A ação é permanente.
-            </span>
-          </label>
+          <CheckboxCard name="confirmed" required tone="danger">
+            Confirmo a eliminação do registro de bloqueio deste CPF <strong>só na loja escolhida</strong>. Depois disso, o titular poderá
+            fazer uma nova solicitação nessa loja. A ação é permanente.
+          </CheckboxCard>
           <FieldError>{fieldError(release, "confirmed")}</FieldError>
 
           <div>

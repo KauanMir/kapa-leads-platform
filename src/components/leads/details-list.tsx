@@ -6,13 +6,19 @@ export function DetailsList({ items }: { items: Array<{ label: string; value: Re
   if (visible.length === 0) return <p className="text-sm text-muted">Nenhuma informação.</p>;
 
   return (
-    <dl className="divide-y divide-line">
-      {visible.map((item) => (
-        <div key={item.key ?? item.label} className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-baseline gap-4 py-2.5 first:pt-0 last:pb-0">
-          <dt className="text-sm text-muted">{item.label}</dt>
-          <dd className="min-w-0 break-words text-[15px] font-medium">{item.value}</dd>
-        </div>
-      ))}
-    </dl>
+    // Em colunas estreitas o rótulo fica acima do valor; com espaço, lado a lado.
+    <div className="@container">
+      <dl className="divide-y divide-line">
+        {visible.map((item) => (
+          <div
+            key={item.key ?? item.label}
+            className="grid grid-cols-1 gap-0.5 py-2.5 first:pt-0 last:pb-0 @sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @sm:items-baseline @sm:gap-4"
+          >
+            <dt className="text-[13px] text-muted @sm:text-sm">{item.label}</dt>
+            <dd className="min-w-0 break-words text-[15px] font-medium">{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

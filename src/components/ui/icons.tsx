@@ -10,11 +10,11 @@ export function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 /** Marca KAPA Leads (quadrado com "K"). */
-export function BrandMark({ className = "" }: { className?: string }) {
+export function BrandMark({ className = "size-8 rounded-lg text-[14px]" }: { className?: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#3b6cff] to-[#1b3fb8] text-[15px] font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.25)] ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center bg-accent font-bold tracking-tight text-white ${className}`}
     >
       K
     </span>

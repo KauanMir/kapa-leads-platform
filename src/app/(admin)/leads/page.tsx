@@ -44,7 +44,7 @@ async function LeadsContent(props: PageProps<"/leads">) {
         title={
           <span className="flex items-center gap-3">
             Leads
-            <span className="rounded-full bg-line/70 px-2.5 py-0.5 text-sm font-semibold tabular-nums text-muted">{result.total.toLocaleString("pt-BR")}</span>
+            <span className="num rounded-md bg-surface-sunken px-2 py-0.5 text-sm font-semibold text-muted ring-1 ring-inset ring-line">{result.total.toLocaleString("pt-BR")}</span>
           </span>
         }
         description={manager ? "Acompanhe e distribua os leads da loja." : "Seus leads e a fila para assumir."}
@@ -57,21 +57,24 @@ async function LeadsContent(props: PageProps<"/leads">) {
         </div>
       ) : null}
 
-      <AssigneeTabs current={filters.assignee} hrefFor={(assignee) => hrefFor({ assignee })} />
+      <Card className="overflow-hidden">
+        <div className="border-b border-line">
+          <AssigneeTabs current={filters.assignee} hrefFor={(assignee) => hrefFor({ assignee })} />
+        </div>
 
-      <LeadFilters
-        basePath="/leads"
-        current={filters}
-        defaultPeriod={DEFAULT_PERIOD}
-        campaigns={campaignOptions(campaigns, showStore)}
-        stores={showStore ? storeOptions(context) : null}
-        assignee={{
-          defaultValue: defaultAssignee,
-          members: manager ? members.map((m) => ({ id: m.userId, label: m.isActive ? m.fullName : `${m.fullName} (inativo)` })) : null,
-        }}
-      />
+        <LeadFilters
+          className="border-b border-line bg-surface-muted/50 p-3 sm:px-4"
+          basePath="/leads"
+          current={filters}
+          defaultPeriod={DEFAULT_PERIOD}
+          campaigns={campaignOptions(campaigns, showStore)}
+          stores={showStore ? storeOptions(context) : null}
+          assignee={{
+            defaultValue: defaultAssignee,
+            members: manager ? members.map((m) => ({ id: m.userId, label: m.isActive ? m.fullName : `${m.fullName} (inativo)` })) : null,
+          }}
+        />
 
-      <Card className="mt-4 overflow-hidden">
         <LeadsTable
           rows={result.rows}
           showStore={showStore}

@@ -70,7 +70,7 @@ export function CreateUserForm({ stores }: { stores: StoreOption[] }) {
           <RoleSelect id="u-role" />
         </div>
       </div>
-      <div>
+      <div className="flex border-t border-line pt-5">
         <SubmitButton pendingLabel="Criando…">Criar usuário</SubmitButton>
       </div>
     </form>

@@ -53,7 +53,7 @@ export function AssigneeCard({
           value={assignedTo ?? ""}
           disabled={pending}
           onChange={(event) => run(() => assignLeadAction(leadId, event.target.value), "Responsável atualizado.")}
-          className="h-11 w-full cursor-pointer rounded-xl border border-line-strong bg-surface px-3 text-[15px] font-semibold shadow-sm"
+          className="select-chevron h-11 w-full cursor-pointer rounded-lg border border-line-strong bg-surface px-3 pr-9 text-[15px] font-semibold shadow-xs transition-colors hover:border-[#c3c9d4] disabled:cursor-wait"
         >
           <option value="">Sem responsável</option>
           {selectOptions.map((option) => (
@@ -67,7 +67,7 @@ export function AssigneeCard({
           {current ? (
             <Avatar name={assigneeName ?? current} size="sm" />
           ) : (
-            <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-amber-300 bg-warning-soft text-warning">
+            <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full border border-dashed border-warning-line bg-warning-soft text-warning">
               <UserRoundX className="size-4" />
             </span>
           )}

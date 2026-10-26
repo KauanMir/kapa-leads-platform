@@ -1,9 +1,9 @@
-import { LogOut, Store } from "lucide-react";
+import { Building2, LogOut } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { MobileNav, Sidebar, type NavSection } from "@/components/admin/admin-nav";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, initials } from "@/components/ui/avatar";
 import { logout } from "@/lib/actions/auth";
 import { ROLE_LABELS, type AdminContext } from "@/lib/auth/access";
 
@@ -39,16 +39,23 @@ function storeContext(context: AdminContext): string {
   return `${context.stores.length} lojas`;
 }
 
-/** Loja em que o usuário está (topo do menu). */
+/** Loja em que o usuário está (topo do menu). Só informa: o acesso vem dos vínculos. */
 function StoreChip({ context }: { context: AdminContext }) {
+  const name = storeContext(context);
+  const single = !context.isSuperAdmin && context.stores.length === 1;
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-sidebar-line bg-white/[0.03] px-3 py-2.5">
-      <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-sidebar-text">
-        <Store className="size-4" />
+    <div className="flex items-center gap-2.5 rounded-lg border border-line bg-surface px-2.5 py-2 shadow-xs">
+      <span
+        aria-hidden="true"
+        className="flex size-8 shrink-0 items-center justify-center rounded-md bg-foreground text-[12px] font-semibold tracking-tight text-white"
+      >
+        {single ? initials(name) : <Building2 className="size-4" />}
       </span>
       <span className="min-w-0 leading-tight">
-        <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-sidebar-text/70">Loja</span>
-        <span className="block truncate text-sm font-semibold text-white">{storeContext(context)}</span>
+        <span className="block text-[11px] font-medium uppercase tracking-[0.08em] text-subtle">Loja</span>
+        <span className="block truncate text-[14px] font-semibold text-foreground" title={name}>
+          {name}
+        </span>
       </span>
     </div>
   );
@@ -58,18 +65,18 @@ function StoreChip({ context }: { context: AdminContext }) {
 function UserFooter({ name, role }: { name: string; role: string }) {
   return (
     <div className="flex items-center gap-1">
-      <Link href="/perfil" className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 hover:bg-sidebar-hover">
+      <Link href="/perfil" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-sidebar-hover">
         <Avatar name={name} size="sm" />
         <span className="min-w-0 leading-tight">
-          <span className="block truncate text-sm font-semibold text-white">{name}</span>
-          <span className="block truncate text-xs text-sidebar-text">{role}</span>
+          <span className="block truncate text-[14px] font-semibold text-foreground">{name}</span>
+          <span className="block truncate text-xs text-muted">{role}</span>
         </span>
       </Link>
       <form action={logout}>
         <button
           type="submit"
           title="Sair"
-          className="inline-flex size-10 items-center justify-center rounded-xl text-sidebar-text hover:bg-sidebar-hover hover:text-white"
+          className="inline-flex size-10 items-center justify-center rounded-lg text-muted hover:bg-sidebar-hover hover:text-foreground"
         >
           <LogOut aria-hidden="true" className="size-[18px]" />
           <span className="sr-only">Sair</span>
@@ -78,6 +85,9 @@ function UserFooter({ name, role }: { name: string; role: string }) {
     </div>
   );
 }
+
+/** Largura útil do conteúdo: aproveita telas grandes até ~1600 px. */
+export const CONTENT_CLASS = "mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10";
 
 export function AdminShell({ context, children }: { context: AdminContext; children: ReactNode }) {
   const sections = navFor(context);
@@ -105,7 +115,7 @@ export function AdminShell({ context, children }: { context: AdminContext; child
           }
         />
 
-        <main id="conteudo" className="mx-auto w-full max-w-[1240px] flex-1 px-4 pb-10 pt-6 sm:px-6 lg:px-10 lg:pt-9">
+        <main id="conteudo" className={`kl-page flex-1 pb-28 pt-5 sm:pt-6 lg:pb-12 lg:pt-8 ${CONTENT_CLASS}`}>
           {children}
         </main>
       </div>
@@ -116,18 +126,18 @@ export function AdminShell({ context, children }: { context: AdminContext; child
 export function AdminShellSkeleton() {
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-64 shrink-0 bg-sidebar lg:block" />
+      <aside className="hidden w-[248px] shrink-0 border-r border-sidebar-line bg-sidebar lg:block" />
       <div className="flex flex-1 flex-col">
-        <div className="h-14 bg-sidebar lg:hidden" />
-        <div className="mx-auto w-full max-w-[1240px] px-4 pt-6 sm:px-6 lg:px-10 lg:pt-9" aria-busy="true" aria-live="polite">
+        <div className="h-14 border-b border-line bg-surface lg:hidden" />
+        <div className={`pt-5 sm:pt-6 lg:pt-8 ${CONTENT_CLASS}`} aria-busy="true" aria-live="polite">
           <span className="sr-only">Carregando…</span>
-          <div className="h-8 w-48 animate-pulse rounded-lg bg-line/70" />
-          <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="h-8 w-48 animate-pulse rounded-lg bg-surface-sunken" />
+          <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-28 animate-pulse rounded-2xl bg-line/50" />
+              <div key={i} className="h-28 animate-pulse rounded-xl bg-surface-sunken" />
             ))}
           </div>
-          <div className="mt-6 h-64 animate-pulse rounded-2xl bg-line/50" />
+          <div className="mt-6 h-64 animate-pulse rounded-xl bg-surface-sunken" />
         </div>
       </div>
     </div>

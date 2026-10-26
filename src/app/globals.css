@@ -1,33 +1,41 @@
 @import "tailwindcss";
 
 /*
- * Tokens visuais do Admin KAPA (tema claro).
- * Para trocar a cor de destaque da marca, altere apenas --accent*.
+ * Design system do KAPA Leads (tema claro).
+ *
+ * Princípios: fundo cinza muito suave, superfícies brancas com borda de 1px,
+ * sombras quase imperceptíveis, azul KAPA só para interação, grafite no texto
+ * e cores de status em tons suaves. Para trocar a cor da marca, altere --accent*.
  */
 :root {
-  --background: #f3f4f7;
+  --background: #f5f6f8;
   --surface: #ffffff;
   --surface-muted: #f8f9fb;
-  --foreground: #0d1526;
-  --muted: #646d7e;
-  --border: #e6e8ee;
-  --border-strong: #d2d6df;
+  --surface-sunken: #f1f3f6;
+  --foreground: #14171f;
+  --foreground-soft: #343a46;
+  --muted: #687082;
+  --subtle: #9aa1af;
+  --border: #e5e8ee;
+  --border-strong: #d3d8e1;
   --accent: #2557e8;
-  --accent-hover: #1b45c4;
-  --accent-soft: #edf2ff;
+  --accent-hover: #1c47c9;
+  --accent-soft: #eef3ff;
+  --accent-line: #c9d7fd;
   --danger: #b42318;
   --danger-soft: #fef3f2;
   --success: #067647;
   --success-soft: #ecfdf3;
   --warning: #b54708;
   --warning-soft: #fffaeb;
+  --warning-line: #fde4b6;
   --whatsapp: #128c4a;
   --whatsapp-hover: #0e7a3f;
-  /* Menu lateral escuro. */
-  --sidebar: #0c1222;
-  --sidebar-hover: #182036;
-  --sidebar-line: #1f2840;
-  --sidebar-text: #a9b2c6;
+  /* Menu lateral claro (mesma família de cinzas do conteúdo). */
+  --sidebar: #fbfbfc;
+  --sidebar-hover: #f0f2f5;
+  --sidebar-line: #e9ecf1;
+  --sidebar-text: #4a5162;
   /* Identidade da campanha Fábrica de Aprovação (só no bloco da simulação ilustrativa). */
   --fabrica-ink: #06100a;
   --fabrica-green: #0c4a1c;
@@ -40,19 +48,24 @@
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
   --color-foreground: var(--foreground);
+  --color-foreground-soft: var(--foreground-soft);
   --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
   --color-line: var(--border);
   --color-line-strong: var(--border-strong);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-warning-line: var(--warning-line);
   --color-whatsapp: var(--whatsapp);
   --color-whatsapp-hover: var(--whatsapp-hover);
   --color-sidebar: var(--sidebar);
@@ -64,8 +77,10 @@
   --color-fabrica-green-light: var(--fabrica-green-light);
   --color-fabrica-green-glow: var(--fabrica-green-glow);
   --color-fabrica-yellow: var(--fabrica-yellow);
-  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.03);
-  --shadow-raised: 0 4px 16px -4px rgb(16 24 40 / 0.08), 0 2px 4px -2px rgb(16 24 40 / 0.04);
+  --shadow-xs: 0 1px 1px rgb(20 23 31 / 0.04);
+  --shadow-card: 0 1px 2px rgb(20 23 31 / 0.04);
+  --shadow-raised: 0 8px 24px -8px rgb(20 23 31 / 0.12), 0 2px 6px -2px rgb(20 23 31 / 0.06);
+  --shadow-overlay: 0 24px 48px -12px rgb(20 23 31 / 0.22);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -80,6 +95,8 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Foco sempre visível para navegação por teclado. */
@@ -87,6 +104,79 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/* Campos: o anel de foco acompanha o próprio controle (sem deslocamento). */
+:where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus-visible {
+  outline-offset: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(37 87 232 / 0.14);
+  outline: none;
+}
+
+/* Seta própria dos selects (mesmo desenho em todos os navegadores). */
+.select-chevron {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23687082' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 1rem;
+}
+
+/* Números alinhados em colunas (tabelas, indicadores, telefones). */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "ss01";
+}
+
+/* Barra inferior do celular: respeita a área segura do aparelho. */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Gaveta do menu no celular. */
+.kl-drawer {
+  animation: kl-drawer-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes kl-drawer-in {
+  from {
+    transform: translateX(-16px);
+    opacity: 0;
+  }
+}
+
+/* Confirmações: abertura suave do <dialog> e do fundo. */
+dialog[open] {
+  animation: kl-dialog-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+dialog[open]::backdrop {
+  animation: kl-fade-in 160ms ease-out;
+}
+
+/* Entrada discreta do conteúdo de cada página. */
+.kl-page {
+  animation: kl-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes kl-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes kl-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes kl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { StatusBadge } from "@/components/leads/status-badge";
 import { Avatar } from "@/components/ui/avatar";
-import { EmptyState } from "@/components/ui/card";
+import { EmptyState, TABLE_HEAD } from "@/components/ui/card";
 import type { LeadListItem } from "@/lib/admin/leads";
 import { formatDateTime, formatRelative } from "@/lib/format/datetime";
 import { formatPhone } from "@/lib/format/phone";
@@ -19,17 +19,31 @@ function assigneeLabel(id: string, labels: AssigneeLabels): string {
 function Assignee({ id, labels }: { id: string | null; labels: AssigneeLabels }) {
   if (!id) {
     return (
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-warning-soft px-2.5 py-0.5 text-xs font-semibold text-warning ring-1 ring-inset ring-amber-200">
+      <span className="inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-md bg-warning-soft px-2 text-xs font-semibold text-warning ring-1 ring-inset ring-warning-line">
         Sem responsável
       </span>
     );
   }
   const label = assigneeLabel(id, labels);
   return (
-    <span className="inline-flex min-w-0 items-center gap-2">
+    <span className="inline-flex min-w-0 max-w-full items-center gap-2">
       <Avatar name={labels.names[id] ?? label} size="xs" />
-      <span className="truncate text-sm font-medium">{label}</span>
+      <span className="truncate text-[14px] font-medium text-foreground-soft">{label}</span>
     </span>
+  );
+}
+
+/** Recebido: relativo ("há 5 min") e, para os recentes, a data completa logo abaixo. */
+function ReceivedAt({ iso, now }: { iso: string; now: Date }) {
+  const relative = formatRelative(iso, now);
+  const recent = !/^[0-9]/.test(relative);
+  return (
+    <>
+      <time dateTime={iso} title={formatDateTime(iso)} className="num block text-[14px] font-medium text-foreground-soft">
+        {relative}
+      </time>
+      {recent ? <span className="num block text-xs text-subtle">{formatDateTime(iso)}</span> : null}
+    </>
   );
 }
 
@@ -51,27 +65,36 @@ export function LeadsTable({
 
   return (
     <>
-      <div className="hidden md:block">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-line bg-surface-muted text-[11px] uppercase tracking-[0.06em] text-muted">
+      <div className="hidden lg:block">
+        <table className="w-full table-fixed text-left text-sm">
+          <colgroup>
+            <col className="w-[32%]" />
+            <col className="w-[18%]" />
+            <col className="w-[14%]" />
+            <col className="w-[20%]" />
+            <col className="w-[16%]" />
+          </colgroup>
+          <thead className={TABLE_HEAD}>
             <tr>
-              <th scope="col" className="py-3 pl-5 pr-4 font-semibold">Lead</th>
-              <th scope="col" className="px-4 py-3 font-semibold">Telefone</th>
-              <th scope="col" className="px-4 py-3 font-semibold">Status</th>
-              <th scope="col" className="px-4 py-3 font-semibold">Responsável</th>
-              <th scope="col" className="py-3 pl-4 pr-5 text-right font-semibold">Recebido</th>
+              <th scope="col" className="py-2.5 pl-5 pr-4 font-medium">Lead</th>
+              <th scope="col" className="px-4 py-2.5 font-medium">Telefone</th>
+              <th scope="col" className="px-4 py-2.5 font-medium">Status</th>
+              <th scope="col" className="px-4 py-2.5 font-medium">Responsável</th>
+              <th scope="col" className="py-2.5 pl-4 pr-5 text-right font-medium">Recebido</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
             {rows.map((lead) => (
-              <tr key={lead.id} className="group relative transition-colors hover:bg-accent-soft/40">
-                <td className="py-3.5 pl-5 pr-4">
+              <tr key={lead.id} className="group relative transition-colors hover:bg-surface-muted">
+                <td className="py-3 pl-5 pr-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <Avatar name={lead.fullName} size="md" />
+                    <span className="hidden xl:block">
+                      <Avatar name={lead.fullName} size="md" />
+                    </span>
                     <div className="min-w-0">
                       <Link
                         href={`/leads/${lead.id}`}
-                        className="block truncate text-[15px] font-semibold text-foreground after:absolute after:inset-0 group-hover:text-accent"
+                        className="block truncate text-[14px] font-semibold text-foreground after:absolute after:inset-0 group-hover:text-accent"
                       >
                         {lead.fullName}
                       </Link>
@@ -79,17 +102,15 @@ export function LeadsTable({
                     </div>
                   </div>
                 </td>
-                <td className="whitespace-nowrap px-4 py-3.5 font-medium tabular-nums">{formatPhone(lead.phone)}</td>
-                <td className="px-4 py-3.5">
+                <td className="num whitespace-nowrap px-4 py-3 text-[14px] font-medium text-foreground-soft">{formatPhone(lead.phone)}</td>
+                <td className="px-4 py-3">
                   <StatusBadge status={lead.status} />
                 </td>
-                <td className="max-w-48 px-4 py-3.5">
+                <td className="overflow-hidden px-4 py-3">
                   <Assignee id={lead.assignedTo} labels={assignees} />
                 </td>
-                <td className="whitespace-nowrap py-3.5 pl-4 pr-5 text-right">
-                  <time dateTime={lead.createdAt} title={formatDateTime(lead.createdAt)} className="tabular-nums text-muted">
-                    {formatRelative(lead.createdAt, now)}
-                  </time>
+                <td className="whitespace-nowrap py-3 pl-4 pr-5 text-right">
+                  <ReceivedAt iso={lead.createdAt} now={now} />
                 </td>
               </tr>
             ))}
@@ -97,26 +118,26 @@ export function LeadsTable({
         </table>
       </div>
 
-      <ul className="divide-y divide-line md:hidden">
+      <ul className="divide-y divide-line lg:hidden">
         {rows.map((lead) => (
           <li key={lead.id}>
-            <Link href={`/leads/${lead.id}`} className="flex gap-3 px-4 py-4 active:bg-surface-muted">
+            <Link href={`/leads/${lead.id}`} className="flex gap-3 px-4 py-3.5 transition-colors active:bg-surface-muted">
               <Avatar name={lead.fullName} size="md" />
               <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate text-[15px] font-semibold">{lead.fullName}</span>
-                  <time dateTime={lead.createdAt} className="shrink-0 pt-0.5 text-xs tabular-nums text-muted">
+                  <time dateTime={lead.createdAt} title={formatDateTime(lead.createdAt)} className="num shrink-0 text-xs text-muted">
                     {formatRelative(lead.createdAt, now)}
                   </time>
                 </div>
-                <p className="mt-0.5 font-medium tabular-nums">{formatPhone(lead.phone)}</p>
+                <p className="num mt-0.5 text-[14px] font-medium text-foreground-soft">{formatPhone(lead.phone)}</p>
                 {origin(lead) ? <p className="truncate text-[13px] text-muted">{origin(lead)}</p> : null}
-                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <StatusBadge status={lead.status} />
                   <Assignee id={lead.assignedTo} labels={assignees} />
                 </div>
               </div>
-              <ChevronRight aria-hidden="true" className="mt-3 size-5 shrink-0 text-line-strong" />
+              <ChevronRight aria-hidden="true" className="mt-2.5 size-5 shrink-0 text-line-strong" />
             </Link>
           </li>
         ))}

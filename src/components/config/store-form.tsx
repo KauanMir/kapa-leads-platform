@@ -17,9 +17,9 @@ export function StoreForm() {
   }, [state]);
 
   return (
-    <form ref={formRef} action={action} className="flex flex-col gap-4">
+    <form ref={formRef} action={action} className="@container flex flex-col gap-4">
       <FormMessage state={state} />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 @2xl:grid-cols-3">
         <div>
           <Label htmlFor="store-name">Nome</Label>
           <Input id="store-name" name="name" required maxLength={150} aria-invalid={fieldError(state, "name") ? true : undefined} />

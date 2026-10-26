@@ -34,7 +34,7 @@ export function StatusSelect({ leadId, status }: { leadId: string; status: LeadS
           onChange={(event) => onChange(event.target.value)}
           disabled={pending}
           aria-describedby="lead-status-msg"
-          className={`h-11 w-full cursor-pointer rounded-xl px-3 pr-8 text-[15px] font-semibold ring-1 ring-inset ${STATUS_STYLES[optimisticStatus]}`}
+          className={`select-chevron h-11 w-full cursor-pointer rounded-lg px-3 pr-9 text-[15px] font-semibold ring-1 ring-inset transition-colors disabled:cursor-wait ${STATUS_STYLES[optimisticStatus]}`}
         >
           {LEAD_STATUSES.map((value) => (
             <option key={value} value={value}>

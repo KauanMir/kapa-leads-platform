@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { LoginForm } from "@/app/(auth)/login/login-form";
+import { BrandMark } from "@/components/ui/icons";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Entrar · KAPA Leads" };
@@ -25,16 +26,15 @@ async function LoginContent({ searchParams }: { searchParams: Promise<Record<str
 
 export default function LoginPage(props: PageProps<"/login">) {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <p className="text-2xl font-bold tracking-tight">
-            KAPA <span className="font-medium text-muted">Leads</span>
-          </p>
+    <main className="kl-page flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="w-full max-w-[400px]">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <BrandMark className="size-11 rounded-xl text-lg" />
+          <p className="mt-4 text-[22px] font-semibold tracking-tight">KAPA Leads</p>
           <p className="mt-1 text-sm text-muted">Acesse o painel de leads</p>
         </div>
-        <div className="rounded-xl border border-line bg-surface p-6 shadow-sm sm:p-8">
-          <h1 className="mb-6 text-lg font-semibold">Entrar</h1>
+        <div className="rounded-xl border border-line bg-surface p-6 shadow-raised sm:p-8">
+          <h1 className="mb-6 text-lg font-semibold tracking-tight">Entrar</h1>
           <Suspense fallback={<div className="h-72" aria-busy="true" />}>
             <LoginContent searchParams={props.searchParams} />
           </Suspense>

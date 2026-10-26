@@ -27,6 +27,7 @@ export function LeadFilters({
   assignee,
   showSearch = true,
   showStatus = true,
+  className = "",
 }: {
   basePath: string;
   current: UrlFilters;
@@ -37,6 +38,8 @@ export function LeadFilters({
   assignee?: { defaultValue: AssigneeFilter; members: Option[] | null };
   showSearch?: boolean;
   showStatus?: boolean;
+  /** Moldura do formulário (a página decide se fica dentro de um cartão). */
+  className?: string;
 }) {
   const router = useRouter();
   const [period, setPeriod] = useState<Period>(current.period);
@@ -81,18 +84,18 @@ export function LeadFilters({
     router.push(`${basePath}${query}`);
   }
 
-  const selectClass = "h-10 pl-2.5 text-sm sm:w-auto sm:min-w-40 sm:pl-3";
+  const selectClass = "h-10 pl-3 text-sm sm:w-auto sm:min-w-[152px]";
 
   return (
-    <form onSubmit={onSubmit} role="search" aria-label="Filtros de leads" className="rounded-2xl border border-line bg-surface p-3 shadow-card">
-      <div className="flex flex-col gap-3">
+    <form onSubmit={onSubmit} role="search" aria-label="Filtros de leads" className={className}>
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:flex-wrap lg:items-start">
         {showSearch ? (
-          <div className="flex gap-2">
+          <div className="flex gap-2 lg:min-w-[260px] lg:max-w-sm lg:flex-1">
             <div className="relative flex-1">
               <Label htmlFor="filtro-q" className="sr-only">
                 Buscar
               </Label>
-              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-5 size-4 -translate-y-1/2 text-muted" />
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-5 size-4 -translate-y-1/2 text-subtle" />
               <Input
                 id="filtro-q"
                 name="q"
@@ -155,11 +158,11 @@ export function LeadFilters({
             <input type="hidden" name="resp" value={current.assignee} />
           ) : null}
 
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <Label htmlFor="filtro-campanha" className="sr-only">
               Campanha
             </Label>
-            <Select id="filtro-campanha" name="campanha" defaultValue={current.campaignId ?? ""} className={selectClass}>
+            <Select id="filtro-campanha" name="campanha" defaultValue={current.campaignId ?? ""} className={`${selectClass} sm:max-w-72`}>
               <option value="">Todas as campanhas</option>
               {campaigns.map((campaign) => (
                 <option key={campaign.id} value={campaign.id}>
@@ -216,11 +219,11 @@ export function LeadFilters({
           ) : null}
 
           <div className="col-span-2 flex gap-2">
-            <Button type="submit" className="flex-1 sm:flex-none">
+            <Button type="submit" className="flex-1 px-5 sm:flex-none">
               Filtrar
             </Button>
             {activeCount || current.q ? (
-              <Link href={basePath} className={buttonClasses({ variant: "ghost", className: "flex-1 text-muted sm:flex-none" })}>
+              <Link href={basePath} className={buttonClasses({ variant: "ghost", className: "flex-1 sm:flex-none" })}>
                 Limpar
               </Link>
             ) : null}

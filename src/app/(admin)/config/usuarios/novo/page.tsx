@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/admin/page-skeleton";
 import { CreateUserForm } from "@/components/config/user-forms";
-import { Card, PageHeader } from "@/components/ui/card";
+import { BackLink, Card, PageHeader } from "@/components/ui/card";
 import { listStores } from "@/lib/admin/config";
 import { getSuperAdminSession } from "@/lib/auth/session";
 import { NotFoundPanel } from "@/components/admin/not-found-panel";
@@ -18,8 +18,9 @@ async function NewUserContent() {
 
   return (
     <>
+      <BackLink href="/config/usuarios">Voltar para usuários</BackLink>
       <PageHeader title="Novo usuário" description="O usuário entra com e-mail e a senha inicial definida aqui." />
-      <Card className="p-5">
+      <Card className="max-w-4xl p-4 sm:p-6">
         <CreateUserForm stores={stores.filter((s) => s.isActive).map((s) => ({ id: s.id, name: s.name }))} />
       </Card>
     </>

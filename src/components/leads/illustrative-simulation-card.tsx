@@ -53,7 +53,7 @@ export function IllustrativeSimulationCard({
       aria-labelledby="illustrative-simulation"
       data-testid="illustrative-simulation"
       data-state={expired ? "expired" : "valid"}
-      className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card"
+      className="overflow-hidden rounded-xl border border-line bg-surface shadow-card"
     >
       {/* Faixa da campanha (identidade da Fábrica: preto, verde e amarelo). */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-fabrica-ink px-5 py-3">
@@ -72,7 +72,7 @@ export function IllustrativeSimulationCard({
       </div>
       <div aria-hidden="true" className="h-0.5 bg-linear-to-r from-fabrica-green-light via-fabrica-green-light to-fabrica-yellow" />
 
-      <div className="p-5 sm:p-6">
+      <div className="@container p-5 sm:p-6">
         <h2 id="illustrative-simulation" className="text-[13px] font-medium text-muted">
           {ILLUSTRATIVE_VALUE_LABEL}
         </h2>
@@ -122,9 +122,9 @@ export function IllustrativeSimulationCard({
         {answers.length > 0 ? (
           <div className="mt-5">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Respostas do formulário</h3>
-            <dl className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <dl className="mt-2 grid grid-cols-1 gap-2 @lg:grid-cols-3">
               {answers.map((answer) => (
-                <div key={answer.key} className="rounded-xl bg-surface-muted px-3.5 py-2.5 ring-1 ring-inset ring-line">
+                <div key={answer.key} className="rounded-lg bg-surface-muted px-3.5 py-2.5 ring-1 ring-inset ring-line">
                   <dt className="text-[13px] text-muted">{answer.label}</dt>
                   <dd className="mt-0.5 break-words font-semibold">{answer.value}</dd>
                 </div>
