@@ -9,7 +9,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { ConfigError, createStore, getCampaign, listStoreMembers, rotateCampaignKey, updateCampaign } from "@/lib/admin/config";
+import {
+  ConfigError,
+  createStore,
+  createUserAccount,
+  getCampaign,
+  getUserCreation,
+  listStoreMembers,
+  rotateCampaignKey,
+  updateCampaign,
+} from "@/lib/admin/config";
 import { summarizeKpis } from "@/lib/admin/kpis";
 import {
   addLeadNote,
@@ -420,5 +429,135 @@ describe("operação SDR (camada de dados da Fase 9)", () => {
     const mine = await listLeads(users.userA.db, { storeId: storeA, assignedTo: users.userA.id });
     expect(sdr.byAssignee.get(users.userA.id)?.total).toBe(mine.total);
     expect(sdr.byAssignee.get(users.userA.id)?.byStatus).toMatchObject({ WON: 1, LOST: 1 });
+  });
+});
+
+describe("Novo usuário: Administrador Geral, Gerente e SDR", () => {
+  const email = (label: string) => `${RUN}-novo-${label}@${TEST_EMAIL_DOMAIN}`;
+  const input = (label: string, access: "SUPER_ADMIN" | "STORE_ADMIN" | "STORE_USER", storeId: string | null) => ({
+    fullName: `Novo ${label}`,
+    email: email(label),
+    password: `${randomUUID()}Aa1!`,
+    access,
+    storeId,
+  });
+
+  async function authUserIds(address: string) {
+    const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    return (data?.users ?? []).filter((u) => u.email === address).map((u) => u.id);
+  }
+
+  async function state(userId: string) {
+    const profile = unwrap(await admin.from("profiles").select("is_super_admin, is_active, full_name").eq("id", userId).single(), "perfil");
+    const memberships = unwrap(await admin.from("store_members").select("store_id, role, is_active").eq("user_id", userId), "vínculos");
+    const audit = unwrap(await admin.from("user_creation_audit").select("access, store_id, created_by, email").eq("user_id", userId), "auditoria");
+    return { profile, memberships, audit };
+  }
+
+  it("SUPER_ADMIN cria Administrador Geral: acesso global, sem vínculo, auditado", async () => {
+    const data = input("global", "SUPER_ADMIN", null);
+    const result = await createUserAccount(users.superAdmin.db, admin, data);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const created = await state(result.userId);
+    expect(created.profile).toEqual({ is_super_admin: true, is_active: true, full_name: "Novo global" });
+    expect(created.memberships).toEqual([]);
+    expect(created.audit).toEqual([{ access: "SUPER_ADMIN", store_id: null, created_by: users.superAdmin.id, email: data.email }]);
+    expect(await getUserCreation(users.superAdmin.db, result.userId)).toMatchObject({ createdByName: "Super" });
+
+    // Entra com a senha inicial e enxerga todas as lojas — inclusive uma criada depois.
+    const db = await signIn(env.url, env.publishableKey, data.email, data.password);
+    const later = unwrap(await admin.from("stores").insert({ slug: `${RUN}-futura`, name: "ADM Loja Futura" }).select("id").single(), "loja futura");
+    const access = await loadAdminAccess(db, result.userId);
+    expect(access.status === "ok" && access.context.role).toBe("SUPER_ADMIN");
+    const ids = access.status === "ok" ? access.context.stores.map((s) => s.id) : [];
+    expect(ids).toEqual(expect.arrayContaining([storeA, storeB, later.id]));
+    expect((await listLeads(db, {})).total).toBeGreaterThanOrEqual(3);
+    // É SUPER_ADMIN de verdade no banco: também cria o próximo usuário.
+    expect((await createUserAccount(db, admin, input("por-global", "STORE_USER", storeA))).ok).toBe(true);
+  });
+
+  it("SUPER_ADMIN continua criando Gerente e SDR, vinculados à loja escolhida", async () => {
+    const manager = await createUserAccount(users.superAdmin.db, admin, input("gerente", "STORE_ADMIN", storeA));
+    const sdr = await createUserAccount(users.superAdmin.db, admin, input("sdr", "STORE_USER", storeB));
+    if (!manager.ok || !sdr.ok) throw new Error("criação falhou");
+
+    const m = await state(manager.userId);
+    expect(m.profile.is_super_admin).toBe(false);
+    expect(m.memberships).toEqual([{ store_id: storeA, role: "STORE_ADMIN", is_active: true }]);
+    expect(m.audit).toEqual([expect.objectContaining({ access: "STORE_ADMIN", store_id: storeA, created_by: users.superAdmin.id })]);
+
+    const s = await state(sdr.userId);
+    expect(s.profile.is_super_admin).toBe(false);
+    expect(s.memberships).toEqual([{ store_id: storeB, role: "STORE_USER", is_active: true }]);
+  });
+
+  it("Gerente e SDR não criam Administrador Geral (nem ninguém); a conta é desfeita", async () => {
+    for (const [label, actor] of [["pelo-gerente", users.adminB], ["pelo-sdr", users.userA]] as const) {
+      const global = input(label, "SUPER_ADMIN", null);
+      expect(await createUserAccount(actor.db, admin, global)).toEqual({ ok: false, reason: "forbidden" });
+      expect(await authUserIds(global.email)).toEqual([]);
+      const store = input(`${label}-loja`, "STORE_USER", storeB);
+      expect(await createUserAccount(actor.db, admin, store)).toEqual({ ok: false, reason: "forbidden" });
+      expect(await authUserIds(store.email)).toEqual([]);
+    }
+  });
+
+  it("via API: Gerente, SDR e anônimo não chamam a função nem se promovem pelo perfil", async () => {
+    const target = await createTestUser(admin, email("alvo-api"), "Alvo API");
+    for (const actor of [users.adminB, users.userA]) {
+      expect((await actor.db.rpc("grant_new_user_access", { p_user_id: target.id, p_access: "SUPER_ADMIN" })).error?.code).toBe("KL011");
+      expect((await actor.db.rpc("grant_new_user_access", { p_user_id: actor.id, p_access: "SUPER_ADMIN" })).error?.code).toBe("KL011");
+      await actor.db.from("profiles").update({ is_super_admin: true }).eq("id", actor.id);
+      await actor.db.from("user_creation_audit").insert({ user_id: actor.id, email: "x@example.com", access: "SUPER_ADMIN" });
+      expect(unwrap(await admin.from("profiles").select("is_super_admin").eq("id", actor.id).single(), "perfil").is_super_admin).toBe(false);
+      expect(unwrap(await actor.db.from("user_creation_audit").select("id"), "auditoria")).toEqual([]);
+    }
+    const anon = createClient<Database>(env.url, env.publishableKey, clientOptions);
+    expect((await anon.rpc("grant_new_user_access", { p_user_id: target.id, p_access: "SUPER_ADMIN" })).error).not.toBeNull();
+    expect(await state(target.id)).toMatchObject({ profile: { is_super_admin: false }, memberships: [], audit: [] });
+  });
+
+  it("a função não promove contas existentes, a si mesmo nem repete a concessão", async () => {
+    const sa = users.superAdmin.db;
+    expect((await sa.rpc("grant_new_user_access", { p_user_id: users.userA.id, p_access: "SUPER_ADMIN" })).error?.code).toBe("KL010");
+    expect((await sa.rpc("grant_new_user_access", { p_user_id: users.superAdmin.id, p_access: "SUPER_ADMIN" })).error?.code).toBe("KL010");
+    expect((await sa.rpc("grant_new_user_access", { p_user_id: users.inactive.id, p_access: "STORE_USER", p_store_id: storeA })).error?.code).toBe("KL010");
+
+    const fresh = await createUserAccount(sa, admin, input("uma-vez", "STORE_USER", storeA));
+    if (!fresh.ok) throw new Error("criação falhou");
+    expect((await sa.rpc("grant_new_user_access", { p_user_id: fresh.userId, p_access: "SUPER_ADMIN" })).error?.code).toBe("KL010");
+    expect((await state(fresh.userId)).profile.is_super_admin).toBe(false);
+
+    // Combinações inválidas: global com loja, Gerente sem loja, tipo desconhecido.
+    const target = await createTestUser(admin, email("combinacoes"), "Combinações");
+    expect((await sa.rpc("grant_new_user_access", { p_user_id: target.id, p_access: "SUPER_ADMIN", p_store_id: storeA })).error?.code).toBe("22023");
+    expect((await sa.rpc("grant_new_user_access", { p_user_id: target.id, p_access: "STORE_ADMIN" })).error?.code).toBe("22023");
+    expect((await sa.rpc("grant_new_user_access", { p_user_id: target.id, p_access: "OWNER", p_store_id: storeA })).error?.code).toBe("22023");
+    expect(await state(target.id)).toMatchObject({ profile: { is_super_admin: false }, memberships: [], audit: [] });
+  });
+
+  it("e-mail duplicado é recusado sem alterar a conta existente", async () => {
+    const existing = await createTestUser(admin, email("duplicado"), "Original");
+    const result = await createUserAccount(users.superAdmin.db, admin, { ...input("duplicado", "SUPER_ADMIN", null), fullName: "Outra pessoa" });
+    expect(result).toEqual({ ok: false, reason: "duplicate" });
+    expect(await authUserIds(existing.email)).toEqual([existing.id]);
+    expect(await state(existing.id)).toMatchObject({ profile: { is_super_admin: false, full_name: "Original" }, memberships: [], audit: [] });
+  });
+
+  it("falha ao definir o acesso (loja inexistente) não deixa conta pela metade", async () => {
+    const data = input("loja-invalida", "STORE_ADMIN", randomUUID());
+    expect(await createUserAccount(users.superAdmin.db, admin, data)).toEqual({ ok: false, reason: "invalid" });
+    expect(await authUserIds(data.email)).toEqual([]);
+    const { count } = await admin.from("profiles").select("id", { count: "exact", head: true }).eq("email", data.email);
+    expect(count).toBe(0);
+  });
+
+  it("auditoria de criação: só a KAPA lê", async () => {
+    expect(unwrap(await users.adminB.db.from("user_creation_audit").select("id"), "gerente")).toEqual([]);
+    expect(unwrap(await users.userA.db.from("user_creation_audit").select("id"), "sdr")).toEqual([]);
+    const kapa = unwrap(await users.superAdmin.db.from("user_creation_audit").select("id").like("email", `${RUN}-novo-%`), "kapa");
+    expect(kapa.length).toBeGreaterThan(0);
   });
 });

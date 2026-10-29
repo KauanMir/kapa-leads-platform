@@ -110,13 +110,39 @@ export const campaignInputSchema = z.object({
 
 export const STORE_ROLES = ["STORE_ADMIN", "STORE_USER"] as const;
 
-export const createUserSchema = z.object({
-  fullName: name,
-  email: z.string().trim().toLowerCase().max(254).pipe(z.email("E-mail inválido")),
-  password: z.string().min(10, "Mínimo de 10 caracteres").max(72, "Máximo de 72 caracteres"),
-  storeId: z.preprocess((value) => (value === "" ? null : value), z.uuid().nullable()),
-  role: z.enum(STORE_ROLES),
-});
+/** Tipo de acesso no "Novo usuário": global (KAPA) ou papel numa loja. */
+export const USER_ACCESS = ["SUPER_ADMIN", ...STORE_ROLES] as const;
+export type UserAccess = (typeof USER_ACCESS)[number];
+
+/**
+ * Administrador Geral: sem loja (qualquer loja enviada é descartada) e com a
+ * confirmação explícita do acesso global. Gerente/SDR: loja obrigatória.
+ */
+export const createUserSchema = z
+  .object({
+    fullName: name,
+    email: z.string().trim().toLowerCase().max(254).pipe(z.email("E-mail inválido")),
+    password: z.string().min(10, "Mínimo de 10 caracteres").max(72, "Máximo de 72 caracteres"),
+    access: z.enum(USER_ACCESS, "Escolha o tipo de acesso"),
+    storeId: z.preprocess((value) => (value === "" ? null : value), z.uuid("Selecione a loja").nullable()),
+    confirmGlobal: checkbox,
+  })
+  .superRefine((data, ctx) => {
+    if (data.access === "SUPER_ADMIN") {
+      if (!data.confirmGlobal) ctx.addIssue({ code: "custom", path: ["confirmGlobal"], message: "Confirme o acesso global" });
+    } else if (!data.storeId) {
+      ctx.addIssue({ code: "custom", path: ["storeId"], message: "Selecione a loja" });
+    }
+  })
+  .transform((data) => ({
+    fullName: data.fullName,
+    email: data.email,
+    password: data.password,
+    access: data.access,
+    storeId: data.access === "SUPER_ADMIN" ? null : data.storeId,
+  }));
+
+export type CreateUserInput = z.infer<typeof createUserSchema>;
 
 export const membershipSchema = z.object({
   userId: z.uuid(),

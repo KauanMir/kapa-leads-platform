@@ -230,6 +230,64 @@ export async function listUsers(db: Db): Promise<UserRow[]> {
   }));
 }
 
+export type CreateUserResult =
+  | { ok: true; userId: string }
+  | { ok: false; reason: "duplicate" | "weak_password" | "forbidden" | "invalid" | "failed" | "partial" };
+
+/**
+ * Novo usuário (Administrador Geral, Gerente ou SDR):
+ *   1. conta criada pela API oficial do Supabase Auth (`authAdmin`, chave secreta);
+ *   2. acesso definido com o cliente da SESSÃO (`db`) por grant_new_user_access —
+ *      o banco confere de novo que quem cria é SUPER_ADMIN e grava a auditoria;
+ *   3. se o passo 2 falhar, a conta recém-criada é apagada (nada fica pela metade).
+ * A senha só passa pela chamada do Auth: nunca é guardada nem registrada.
+ */
+export async function createUserAccount(
+  db: Db,
+  authAdmin: Db,
+  input: { fullName: string; email: string; password: string; access: "SUPER_ADMIN" | StoreMemberRole; storeId: string | null },
+): Promise<CreateUserResult> {
+  const { data, error } = await authAdmin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { full_name: input.fullName },
+  });
+  if (error || !data.user) {
+    if (error?.code === "email_exists" || error?.code === "user_already_exists") return { ok: false, reason: "duplicate" };
+    if (error?.code === "weak_password") return { ok: false, reason: "weak_password" };
+    return { ok: false, reason: "failed" };
+  }
+
+  const userId = data.user.id;
+  const { error: grantError } = await db.rpc("grant_new_user_access", {
+    p_user_id: userId,
+    p_access: input.access,
+    p_store_id: input.storeId ?? undefined,
+  });
+  if (!grantError) return { ok: true, userId };
+
+  // Desfaz a conta (o perfil sai junto pela FK). Sem acesso definido ela não
+  // entra no Admin; se nem a exclusão der certo, a tela avisa.
+  const { error: deleteError } = await authAdmin.auth.admin.deleteUser(userId);
+  if (deleteError) return { ok: false, reason: "partial" };
+  if (grantError.code === "KL011" || grantError.code === "42501") return { ok: false, reason: "forbidden" };
+  if (["KL010", "22023", "22P02"].includes(grantError.code)) return { ok: false, reason: "invalid" };
+  return { ok: false, reason: "failed" };
+}
+
+/** Quem criou cada usuário (auditoria; RLS: só SUPER_ADMIN lê). */
+export async function getUserCreation(db: Db, userId: string): Promise<{ createdByName: string | null; createdAt: string } | null> {
+  const { data, error } = await db
+    .from("user_creation_audit")
+    .select("created_at, creator:profiles!user_creation_audit_created_by_fkey(full_name, email)")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) fail("load user creation", error);
+  if (!data) return null;
+  return { createdByName: data.creator?.full_name || data.creator?.email || null, createdAt: data.created_at };
+}
+
 /** Cria o vínculo ou, se já existir, atualiza papel e reativa. */
 export async function upsertMembership(db: Db, input: { userId: string; storeId: string; role: StoreMemberRole }) {
   // Sem UPSERT: o GRANT de UPDATE cobre só (role, is_active), não as chaves.

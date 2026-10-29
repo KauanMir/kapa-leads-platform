@@ -8,6 +8,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Database } from "@/types/database";
@@ -26,7 +27,24 @@ let leadB: string;
 let leadOther: string; // da Loja Alfa, atribuído a OUTRO SDR
 let leadQueue: string; // da Loja Alfa, sem responsável (fila)
 let leadFabrica: string; // da Loja Alfa, campanha com valor ilustrativo e bloqueio de CPF (como a Fábrica de Aprovação)
-const cookies: Record<"storeUser" | "manager" | "superAdmin" | "inactive", string> = { storeUser: "", manager: "", superAdmin: "", inactive: "" };
+const cookies: Record<"storeUser" | "colleague" | "manager" | "superAdmin" | "inactive", string> = {
+  storeUser: "",
+  colleague: "",
+  manager: "",
+  superAdmin: "",
+  inactive: "",
+};
+const ids = { storeUser: "", colleague: "", manager: "", campaignA: "" };
+
+/** id de uma Server Action no build em execução (manifesto do `next build`). */
+function serverActionId(name: string, filename: string): string {
+  const manifest = JSON.parse(readFileSync(".next/server/server-reference-manifest.json", "utf8")) as {
+    node: Record<string, { exportedName?: string; filename?: string }>;
+  };
+  const entry = Object.entries(manifest.node).find(([, v]) => v.exportedName === name && v.filename === filename);
+  if (!entry) throw new Error(`Server Action ${name} não encontrada no build`);
+  return entry[0];
+}
 
 /** Login com o mesmo cliente SSR do app; devolve o header Cookie resultante. */
 async function sessionCookie(email: string, password: string): Promise<string> {
@@ -172,7 +190,10 @@ beforeAll(async () => {
   unwrap(await admin.from("leads").update({ assigned_to: colleague.id }).eq("id", leadOther).select("id"), "atribuição");
   unwrap(await admin.from("leads").update({ assigned_to: storeUser.id }).eq("id", leadA.id).select("id"), "atribuição própria");
 
+  Object.assign(ids, { storeUser: storeUser.id, colleague: colleague.id, manager: manager.id, campaignA: campaigns.find((c) => c.slug === "alfa")!.id });
+
   cookies.storeUser = await sessionCookie(storeUser.email, storeUser.password);
+  cookies.colleague = await sessionCookie(colleague.email, colleague.password);
   cookies.manager = await sessionCookie(manager.email, manager.password);
   cookies.superAdmin = await sessionCookie(superAdmin.email, superAdmin.password);
   cookies.inactive = await sessionCookie(inactive.email, inactive.password);
@@ -388,6 +409,119 @@ describe("SUPER_ADMIN", () => {
   });
 });
 
+describe("Novo usuário: Administrador Geral pelo painel", () => {
+  const email = (label: string) => `${RUN}-novo-${label}@${TEST_EMAIL_DOMAIN}`;
+
+  const actionId = (name: string) => serverActionId(name, "src/lib/actions/config.ts");
+
+  /**
+   * Chama createUserAction por HTTP como o navegador faria (protocolo do React:
+   * argumentos [estado anterior, FormData]) — inclusive com campos manipulados.
+   */
+  async function postCreateUser(cookie: string, fields: Record<string, string>) {
+    // Mesmo formato do encodeReply do React 19: campos "_1_<nome>" e, por último, a raiz "0" com o FormData como "$K1".
+    const body = new FormData();
+    for (const [key, value] of Object.entries(fields)) body.append(`_1_${key}`, value);
+    body.append("0", JSON.stringify([null, "$K1"]));
+    const response = await fetch(`${BASE_URL}/config/usuarios/novo`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { cookie, origin: BASE_URL, accept: "text/x-component", "next-action": actionId("createUserAction") },
+      body,
+    });
+    return { status: response.status, redirect: response.headers.get("x-action-redirect") ?? "", text: await response.text() };
+  }
+
+  async function account(address: string) {
+    const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    const user = (data?.users ?? []).find((u) => u.email === address);
+    if (!user) return null;
+    const profile = unwrap(await admin.from("profiles").select("is_super_admin").eq("id", user.id).single(), "perfil");
+    const memberships = unwrap(await admin.from("store_members").select("store_id, role").eq("user_id", user.id), "vínculos");
+    return { id: user.id, isSuperAdmin: profile.is_super_admin, memberships };
+  }
+
+  const fields = (label: string, extra: Record<string, string>) => ({
+    fullName: `E2E Novo ${label}`,
+    email: email(label),
+    password: `${randomUUID()}Aa1!`,
+    ...extra,
+  });
+
+  it("formulário: tipo de acesso com Administrador Geral, Gerente de Loja e SDR (só para a KAPA)", async () => {
+    const page = (await get("/config/usuarios/novo", cookies.superAdmin)).html;
+    expect(renderedNotFound(page)).toBe(false);
+    for (const text of ["Tipo de acesso", "Administrador Geral", "Gerente de Loja", 'value="SUPER_ADMIN"', 'value="STORE_ADMIN"', 'value="STORE_USER"']) {
+      expect(page).toContain(text);
+    }
+    for (const cookie of [cookies.manager, cookies.storeUser]) {
+      const res = await get("/config/usuarios/novo", cookie);
+      expect(renderedNotFound(res.html)).toBe(true);
+      expect(res.html).not.toContain('value="SUPER_ADMIN"');
+    }
+  });
+
+  it("SUPER_ADMIN cria Administrador Geral pela Server Action: global, sem loja, auditado", async () => {
+    const data = fields("global", { access: "SUPER_ADMIN", storeId: "", confirmGlobal: "on" });
+    const res = await postCreateUser(cookies.superAdmin, data);
+    expect(res.redirect).toContain("/config/usuarios?criado=global");
+
+    const created = await account(data.email);
+    expect(created).toMatchObject({ isSuperAdmin: true, memberships: [] });
+    expect((await get("/config/usuarios?criado=global", cookies.superAdmin)).html).toContain("Administrador geral criado, com acesso a todas as lojas.");
+    const detail = (await get(`/config/usuarios/${created!.id}`, cookies.superAdmin)).html;
+    expect(detail).toContain("Super admin (KAPA)");
+    expect(detail).toContain("por E2E Super");
+
+    // Entra e enxerga as duas lojas de teste e as Configurações.
+    const cookie = await sessionCookie(data.email, data.password);
+    const stores = (await get("/config/lojas", cookie)).html;
+    expect(stores).toContain("E2E Loja Alfa");
+    expect(stores).toContain("E2E Loja Beta");
+    expect((await get("/leads", cookie)).html).toContain("Lead Secreto Beta");
+  });
+
+  it("SUPER_ADMIN continua criando Gerente e SDR com a loja escolhida", async () => {
+    const stores = unwrap(await admin.from("stores").select("id, slug").like("slug", `${RUN}-%`), "lojas");
+    const storeA = stores.find((s) => s.slug.endsWith("-a"))!.id;
+    const manager = fields("gerente", { access: "STORE_ADMIN", storeId: storeA });
+    expect((await postCreateUser(cookies.superAdmin, manager)).redirect).toContain("/config/usuarios?criado=1");
+    expect(await account(manager.email)).toMatchObject({ isSuperAdmin: false, memberships: [{ store_id: storeA, role: "STORE_ADMIN" }] });
+
+    const sdr = fields("sdr", { access: "STORE_USER", storeId: storeA });
+    expect((await postCreateUser(cookies.superAdmin, sdr)).redirect).toContain("/config/usuarios?criado=1");
+    expect(await account(sdr.email)).toMatchObject({ isSuperAdmin: false, memberships: [{ store_id: storeA, role: "STORE_USER" }] });
+
+    // Gerente/SDR sem loja: recusado, nada criado.
+    const noStore = fields("sem-loja", { access: "STORE_USER", storeId: "" });
+    const res = await postCreateUser(cookies.superAdmin, noStore);
+    expect(res.text).toContain("Selecione a loja");
+    expect(await account(noStore.email)).toBeNull();
+  });
+
+  it("Gerente e SDR chamando a Server Action manipulada não criam ninguém", async () => {
+    for (const [label, cookie] of [["pelo-gerente", cookies.manager], ["pelo-sdr", cookies.storeUser]] as const) {
+      const data = fields(label, { access: "SUPER_ADMIN", storeId: "", confirmGlobal: "on" });
+      const res = await postCreateUser(cookie, data);
+      expect(res.redirect).toBe("");
+      expect(await account(data.email)).toBeNull();
+    }
+  });
+
+  it("sem confirmação do acesso global ou com e-mail repetido: recusado com mensagem clara", async () => {
+    const unconfirmed = fields("sem-confirmacao", { access: "SUPER_ADMIN", storeId: "" });
+    const res = await postCreateUser(cookies.superAdmin, unconfirmed);
+    expect(res.text).toContain("Confirme o acesso global");
+    expect(await account(unconfirmed.email)).toBeNull();
+
+    const duplicate = fields("global", { access: "SUPER_ADMIN", storeId: "", confirmGlobal: "on" });
+    const before = await account(duplicate.email);
+    const again = await postCreateUser(cookies.superAdmin, duplicate);
+    expect(again.text).toContain("Já existe um usuário com este e-mail.");
+    expect(await account(duplicate.email)).toEqual(before);
+  });
+});
+
 describe("EXCLUIR LEAD (ação administrativa)", () => {
   const hasDelete = (html: string) => html.includes("EXCLUIR LEAD");
 
@@ -428,6 +562,95 @@ describe("EXCLUIR LEAD (ação administrativa)", () => {
   it("/leads mostra o aviso só quando vem da exclusão", async () => {
     expect((await get("/leads?excluido=1", cookies.manager)).html).toContain("Lead excluído com sucesso.");
     expect((await get("/leads", cookies.manager)).html).not.toContain("Lead excluído com sucesso.");
+  });
+});
+
+describe("Exclusividade do lead pelo painel (Server Actions por HTTP)", () => {
+  const TAKEN = "Este contato já foi assumido por outro atendente.";
+  let race: string;
+  let transfer: string;
+
+  beforeAll(async () => {
+    race = (await insertLead(ids.campaignA, "Lead Disputado Alfa")).id;
+    transfer = (await insertLead(ids.campaignA, "Lead Transferido Alfa")).id;
+  });
+
+  /** Chama uma ação de src/lib/actions/leads.ts como o navegador (argumentos em JSON). */
+  async function callLeadAction(cookie: string, name: string, args: unknown[]) {
+    const response = await fetch(`${BASE_URL}/leads/${String(args[0])}`, {
+      method: "POST",
+      redirect: "manual",
+      headers: {
+        cookie,
+        origin: BASE_URL,
+        accept: "text/x-component",
+        "content-type": "text/plain;charset=UTF-8",
+        "next-action": serverActionId(name, "src/lib/actions/leads.ts"),
+      },
+      body: JSON.stringify(args),
+    });
+    return response.text();
+  }
+  const assignedTo = async (lead: string) => unwrap(await admin.from("leads").select("assigned_to").eq("id", lead).single(), "lead").assigned_to;
+  const assignedEvents = async (lead: string) =>
+    unwrap(await admin.from("lead_events").select("actor_id, payload, created_at").eq("lead_id", lead).eq("type", "ASSIGNED").order("id"), "eventos");
+
+  it("abas do SDR: Meus leads, Disponíveis e Todos; o gerente mantém Sem responsável", async () => {
+    expect((await get("/leads?resp=sem", cookies.storeUser)).html).toMatch(/aria-current="page"[^>]*>Disponíveis</);
+    expect((await get("/leads?resp=sem", cookies.manager)).html).toMatch(/aria-current="page"[^>]*>Sem responsável</);
+  });
+
+  it("dois SDRs clicando ASSUMIR ao mesmo tempo: um assume, o outro recebe a mensagem; um único ASSIGNED", async () => {
+    expect((await get("/leads?resp=sem", cookies.colleague)).html).toContain("Lead Disputado Alfa");
+    const [a, b] = await Promise.all([
+      callLeadAction(cookies.storeUser, "claimLeadAction", [race]),
+      callLeadAction(cookies.colleague, "claimLeadAction", [race]),
+    ]);
+    const owner = await assignedTo(race);
+    expect([ids.storeUser, ids.colleague]).toContain(owner);
+    const [winner, loser] = owner === ids.storeUser ? [a, b] : [b, a];
+    expect(winner).toContain('"ok":true');
+    expect(loser).toContain(TAKEN);
+    expect(await assignedEvents(race)).toHaveLength(1);
+
+    // Recarregar a página não devolve o lead para a fila de ninguém.
+    const loserCookie = owner === ids.storeUser ? cookies.colleague : cookies.storeUser;
+    for (const cookie of [cookies.storeUser, cookies.colleague]) {
+      expect((await get("/leads?resp=sem", cookie)).html).not.toContain("Lead Disputado Alfa");
+    }
+    const detail = await get(`/leads/${race}`, loserCookie);
+    expect(detail.html).toContain("Este lead está sendo atendido por");
+    expect(detail.html).not.toContain("ASSUMIR LEAD");
+
+    // Tela desatualizada: tentar de novo continua recusado.
+    expect(await callLeadAction(loserCookie, "claimLeadAction", [race])).toContain(TAKEN);
+    expect(await assignedTo(race)).toBe(owner);
+  });
+
+  it("SDR com a requisição manipulada não troca, não devolve e não toma o responsável", async () => {
+    const owner = (await assignedTo(race))!;
+    const [ownerCookie, otherCookie, otherId] =
+      owner === ids.storeUser ? [cookies.storeUser, cookies.colleague, ids.colleague] : [cookies.colleague, cookies.storeUser, ids.storeUser];
+    expect(await callLeadAction(otherCookie, "assignLeadAction", [race, otherId])).toContain('"ok":false');
+    expect(await callLeadAction(ownerCookie, "assignLeadAction", [race, otherId])).toContain('"ok":false');
+    expect(await callLeadAction(ownerCookie, "assignLeadAction", [race, ""])).toContain('"ok":false');
+    expect(await assignedTo(race)).toBe(owner);
+    expect(await assignedEvents(race)).toHaveLength(1);
+  });
+
+  it("gerente transfere pelo painel: registra anterior, novo, quem fez e quando", async () => {
+    expect(await callLeadAction(cookies.storeUser, "claimLeadAction", [transfer])).toContain('"ok":true');
+    expect(await callLeadAction(cookies.manager, "assignLeadAction", [transfer, ids.colleague])).toContain('"ok":true');
+    expect(await assignedTo(transfer)).toBe(ids.colleague);
+    const [claimed, moved] = await assignedEvents(transfer);
+    expect(claimed).toMatchObject({ actor_id: ids.storeUser, payload: { from: null, to: ids.storeUser } });
+    expect(moved).toMatchObject({ actor_id: ids.manager, payload: { from: ids.storeUser, to: ids.colleague } });
+    expect(Date.now() - new Date(moved.created_at).getTime()).toBeLessThan(120_000);
+
+    const timeline = (await get(`/leads/${transfer}`, cookies.manager)).html;
+    expect(timeline).toContain("Responsável alterado: E2E Vendedor → E2E Colega SDR");
+    // O antigo responsável perde o lead e não consegue retomá-lo.
+    expect(await callLeadAction(cookies.storeUser, "claimLeadAction", [transfer])).toContain(TAKEN);
   });
 });
 

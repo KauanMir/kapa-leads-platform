@@ -35,7 +35,7 @@ Um usuário pode pertencer a várias lojas (vê todas elas).
 | `/perfil` | todos | Nome e troca de senha. |
 | `/config/lojas` | SUPER_ADMIN | Listar, criar, ativar/desativar lojas. |
 | `/config/campanhas` | SUPER_ADMIN | Listar, criar, editar campanhas; copiar e **rotacionar** a `campaignKey`. |
-| `/config/usuarios` | SUPER_ADMIN | Listar, criar usuários, ativar/desativar, vincular a lojas e definir papel. |
+| `/config/usuarios` | SUPER_ADMIN | Listar, criar usuários (Administrador Geral, Gerente ou SDR), ativar/desativar, vincular a lojas e definir papel. O detalhe mostra quem criou o usuário. |
 
 Detalhes:
 
@@ -45,7 +45,37 @@ Detalhes:
 - **WhatsApp**: abre `wa.me` com uma mensagem sugerida; nada é enviado automaticamente.
 - **CPF**: o Admin nunca recebe o CPF completo (o papel `authenticated` não tem acesso à coluna). A revelação auditada fica para uma fase futura. A busca recusa CPF para que ele nunca vá para a URL.
 
-## Primeiro SUPER_ADMIN
+## Novo usuário: Administrador Geral, Gerente ou SDR
+
+**Configurações → Usuários → Novo usuário** (só SUPER_ADMIN). Escolha o **tipo de acesso**:
+
+| Tipo | Papel no banco | Loja | Acesso |
+|---|---|---|---|
+| **Administrador Geral** | SUPER_ADMIN | não tem | Todas as lojas (atuais e futuras), leads, campanhas, usuários e Configurações da KAPA. |
+| **Gerente de Loja** | STORE_ADMIN | obrigatória | Leads, campanhas e equipe da loja escolhida. |
+| **SDR** | STORE_USER | obrigatória | Leads da loja escolhida. |
+
+1. Informe nome, e-mail e **senha inicial** (10 a 72 caracteres; não é exibida depois).
+2. Gerente ou SDR: escolha a loja. Administrador Geral: marque a **confirmação do acesso global**.
+3. Clique em **Criar usuário** / **Criar administrador geral**.
+4. Passe a senha inicial por um canal separado (ex.: ligação). No primeiro acesso, a pessoa troca a senha em **Meu perfil**.
+
+Garantias (servidor + banco, não só a tela):
+
+- Só um SUPER_ADMIN ativo cria usuários. Gerente e SDR não conseguem nem chamando a Server Action ou a API diretamente
+  (o banco recusa em `grant_new_user_access`).
+- A conta é criada pela API oficial do Supabase Auth; o acesso e o registro de auditoria (quem criou, quando, qual acesso)
+  são gravados juntos. Se definir o acesso falhar, a conta recém-criada é apagada — nada fica pela metade.
+- E-mail repetido é recusado sem alterar a conta existente. A senha não é guardada nem registrada em logs.
+- A função não promove contas existentes nem a própria conta: para mudar o acesso de quem já existe, use os vínculos no
+  detalhe do usuário (Gerente/SDR). Promover uma conta existente a Administrador Geral continua fora do painel.
+- O detalhe do usuário mostra "criado em … por …" (contas criadas antes desta versão não têm esse registro).
+
+Não há convite nem recuperação de senha por e-mail (sem SMTP).
+
+## Primeiro SUPER_ADMIN (projeto novo)
+
+Só para o primeiro administrador de um projeto vazio; os demais são criados pelo Admin (seção acima).
 
 1. No painel do Supabase: **Authentication → Users → Add user → Create new user**. Preencha e-mail e senha e marque **Auto Confirm User**.
 2. O `profile` é criado automaticamente (trigger). Promova no **SQL Editor**:
@@ -62,7 +92,7 @@ Para remover o acesso de SUPER_ADMIN: `update public.profiles set is_super_admin
 
 1. **Lojas → Nova loja**: nome e slug (ex.: `fortium`).
 2. **Campanhas → Nova campanha**: loja, nome, slug, versão do consentimento (ex.: `2026-11-v1`), origens permitidas e `form_schema`. Ao salvar, a `campaignKey` é gerada — copie e envie ao time da LP.
-3. **Usuários → Novo usuário**: nome, e-mail, senha inicial (mín. 10 caracteres; não é exibida depois), loja e papel.
+3. **Usuários → Novo usuário**: tipo de acesso (Gerente de Loja ou SDR), nome, e-mail, senha inicial (mín. 10 caracteres; não é exibida depois) e a loja.
 
 ### Origens permitidas (allowed_origins)
 

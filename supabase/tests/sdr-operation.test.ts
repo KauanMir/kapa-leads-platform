@@ -199,6 +199,102 @@ describe("SDR (STORE_USER)", () => {
   });
 });
 
+describe("exclusividade: um único responsável por lead", () => {
+  const race: string[] = [];
+  let queueLead: string;
+  let transferLead: string;
+
+  beforeAll(async () => {
+    for (let i = 0; i < 6; i++) race.push((await newLead(campA, `SDR Corrida ${i}`)).id);
+    queueLead = (await newLead(campA, "SDR Fila Disponivel")).id;
+    transferLead = (await newLead(campA, "SDR Transferencia")).id;
+  });
+
+  // Os blocos seguintes (KPIs, exclusão) contam os leads da Loja A: remove os deste bloco.
+  afterAll(async () => {
+    unwrap(await admin.from("leads").delete().in("id", [...race, queueLead, transferLead]).select("id"), "limpeza");
+  });
+
+  const available = async (db: Db) =>
+    unwrap(await db.from("leads").select("id").eq("store_id", storeA).is("assigned_to", null), "fila").map((l) => l.id);
+
+  it("disputas simultâneas (vários leads, cliques repetidos): cada lead fica com UM SDR e gera UM ASSIGNED", async () => {
+    const attempts = race.flatMap((lead) => [u.sdr1, u.sdr2, u.sdr1, u.sdr2].map((user) => ({ lead, user })));
+    const results = await Promise.all(attempts.map(async ({ lead, user }) => ({ lead, user, error: (await assign(user.db, lead, user.id)).error })));
+
+    for (const lead of race) {
+      const owner = await assignedTo(lead);
+      expect([u.sdr1.id, u.sdr2.id]).toContain(owner);
+      for (const r of results.filter((x) => x.lead === lead)) {
+        // Quem não é o dono só pode ter recebido KL012; o dono, sucesso (repetir o clique não muda nada).
+        if (r.user.id === owner) expect(r.error).toBeNull();
+        else expect(r.error?.code).toBe("KL012");
+      }
+      const assigned = await events(lead, "ASSIGNED");
+      expect(assigned).toHaveLength(1);
+      expect(assigned[0]).toMatchObject({ actor_id: owner, payload: { from: null, to: owner } });
+    }
+  });
+
+  it("lead assumido sai da fila de disponíveis dos demais — e não volta ao recarregar", async () => {
+    expect(await available(u.sdr2.db)).toContain(queueLead);
+    expect((await assign(u.sdr1.db, queueLead, u.sdr1.id)).error).toBeNull();
+    // Cada consulta é uma nova leitura no banco (= atualizar a página).
+    for (let i = 0; i < 3; i++) {
+      expect(await available(u.sdr2.db)).not.toContain(queueLead);
+      expect(await available(u.sdr1.db)).not.toContain(queueLead);
+    }
+    expect((await assign(u.sdr2.db, queueLead, u.sdr2.id)).error?.code).toBe("KL012");
+    expect(await assignedTo(queueLead)).toBe(u.sdr1.id);
+  });
+
+  it("transferência só pela gestão, registrando anterior, novo, quem fez e quando; SDR não contorna", async () => {
+    expect((await assign(u.sdr1.db, transferLead, u.sdr1.id)).error).toBeNull();
+    // SDR não repassa, não devolve e não toma; gerente de outra loja nem enxerga.
+    expect((await assign(u.sdr1.db, transferLead, u.sdr2.id)).error?.code).toBe("KL011");
+    expect((await assign(u.sdr1.db, transferLead, null)).error?.code).toBe("KL011");
+    expect((await assign(u.sdr2.db, transferLead, u.sdr2.id)).error?.code).toBe("KL012");
+    expect((await assign(u.adminB.db, transferLead, u.sdrB.id)).error?.code).toBe("KL010");
+    expect(await assignedTo(transferLead)).toBe(u.sdr1.id);
+
+    const before = Date.now();
+    expect((await assign(u.adminA.db, transferLead, u.sdr2.id)).error).toBeNull();
+    const transfer = unwrap(
+      await admin.from("lead_events").select("actor_id, payload, created_at").eq("lead_id", transferLead).eq("type", "ASSIGNED").order("id"),
+      "eventos",
+    );
+    expect(transfer).toHaveLength(2);
+    expect(transfer[1]).toMatchObject({ actor_id: u.adminA.id, payload: { from: u.sdr1.id, to: u.sdr2.id } });
+    expect(Math.abs(new Date(transfer[1].created_at).getTime() - before)).toBeLessThan(60_000);
+
+    // O antigo responsável não retoma; o novo trabalha.
+    expect((await assign(u.sdr1.db, transferLead, u.sdr1.id)).error?.code).toBe("KL012");
+    expect((await u.sdr1.db.from("leads").update({ status: "CONTACTED" }).eq("id", transferLead).select("id")).data).toEqual([]);
+    expect(unwrap(await u.sdr2.db.from("leads").update({ status: "CONTACTED" }).eq("id", transferLead).select("id"), "status")).toHaveLength(1);
+
+    // KAPA também transfere (visão global), com o próprio registro.
+    expect((await assign(u.superAdmin.db, transferLead, u.sdr1.id)).error).toBeNull();
+    expect((await events(transferLead, "ASSIGNED")).at(-1)).toMatchObject({ actor_id: u.superAdmin.id, payload: { from: u.sdr2.id, to: u.sdr1.id } });
+  });
+
+  it("histórico de atribuição não pode ser forjado nem apagado pela API", async () => {
+    for (const user of [u.sdr1, u.adminA]) {
+      const forged = await user.db.from("lead_events").insert({ lead_id: transferLead, store_id: storeA, type: "ASSIGNED", actor_id: user.id, payload: {} });
+      expect(forged.error).not.toBeNull();
+      expect((await user.db.from("lead_events").delete().eq("lead_id", transferLead).select("id")).data ?? []).toEqual([]);
+    }
+    expect(await events(transferLead, "ASSIGNED")).toHaveLength(3);
+  });
+
+  it("visão: SUPER_ADMIN vê as duas lojas; gerente e SDR só a própria", async () => {
+    const storesSeen = async (db: Db) => new Set(unwrap(await db.from("leads").select("store_id").in("store_id", [storeA, storeB]), "leads").map((l) => l.store_id));
+    expect(await storesSeen(u.superAdmin.db)).toEqual(new Set([storeA, storeB]));
+    expect(await storesSeen(u.adminA.db)).toEqual(new Set([storeA]));
+    expect(await storesSeen(u.sdr2.db)).toEqual(new Set([storeA]));
+    expect(await storesSeen(u.sdrB.db)).toEqual(new Set([storeB]));
+  });
+});
+
 describe("SUPER_ADMIN", () => {
   it("atribui em qualquer loja, só para membros ativos daquela loja", async () => {
     expect((await assign(u.superAdmin.db, leads.b1.id, u.sdrB.id)).error).toBeNull();

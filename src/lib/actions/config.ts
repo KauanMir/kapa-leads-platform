@@ -9,6 +9,8 @@ import {
   ConfigError,
   createCampaign,
   createStore,
+  createUserAccount,
+  type CreateUserResult,
   rotateCampaignKey,
   setMembershipActive,
   setStoreActive,
@@ -137,42 +139,35 @@ export async function rotateCampaignKeyAction(campaignId: string, _prev: FormSta
 // Usuários
 // ---------------------------------------------------------------------
 
-/** Cria usuário no Supabase Auth (servidor, chave secreta). A senha não é guardada nem exibida depois. */
+const CREATE_USER_ERRORS: Record<Exclude<CreateUserResult, { ok: true }>["reason"], FormState> = {
+  duplicate: { ok: false, error: "Já existe um usuário com este e-mail.", fieldErrors: { email: "Em uso" } },
+  weak_password: { ok: false, error: "Senha fraca. Use uma senha mais longa e menos previsível.", fieldErrors: { password: "Senha fraca" } },
+  forbidden: { ok: false, error: "Sem permissão." },
+  invalid: { ok: false, error: "Não foi possível definir o acesso. Confira a loja e tente novamente." },
+  failed: { ok: false, error: "Não foi possível criar o usuário. Tente novamente." },
+  partial: { ok: false, error: "O acesso não foi definido e a conta não pôde ser desfeita. Desative-a em Usuários antes de tentar de novo." },
+};
+
+/**
+ * Cria Administrador Geral (SUPER_ADMIN), Gerente ou SDR. Só SUPER_ADMIN chega
+ * aqui (requireSuperAdmin) e o banco confere de novo ao definir o acesso.
+ * A senha não é guardada nem exibida depois.
+ */
 export async function createUserAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const { db } = await requireSuperAdmin();
   const parsed = createUserSchema.safeParse({
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     password: formData.get("password"),
+    access: formData.get("access"),
     storeId: formData.get("storeId") ?? "",
-    role: formData.get("role"),
+    confirmGlobal: formData.get("confirmGlobal"),
   });
   if (!parsed.success) return { ok: false, error: "Verifique os campos.", fieldErrors: fieldErrors(parsed.error) };
-  const input = parsed.data;
 
-  const { data, error } = await getSupabaseAdmin().auth.admin.createUser({
-    email: input.email,
-    password: input.password,
-    email_confirm: true,
-    user_metadata: { full_name: input.fullName },
-  });
-  if (error || !data.user) {
-    const exists = error?.code === "email_exists" || error?.status === 422;
-    return {
-      ok: false,
-      error: exists ? "Já existe um usuário com este e-mail." : "Não foi possível criar o usuário.",
-      fieldErrors: exists ? { email: "Em uso" } : {},
-    };
-  }
-
-  if (input.storeId) {
-    try {
-      await upsertMembership(db, { userId: data.user.id, storeId: input.storeId, role: input.role });
-    } catch {
-      redirect(`/config/usuarios?criado=1&vinculo=falhou`);
-    }
-  }
-  redirect("/config/usuarios?criado=1");
+  const result = await createUserAccount(db, getSupabaseAdmin(), parsed.data);
+  if (!result.ok) return CREATE_USER_ERRORS[result.reason];
+  redirect(parsed.data.access === "SUPER_ADMIN" ? "/config/usuarios?criado=global" : "/config/usuarios?criado=1");
 }
 
 /** Ativa/desativa o perfil (bloqueia o login e todo acesso via RLS). */

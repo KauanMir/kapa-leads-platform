@@ -19,6 +19,7 @@ stores ──< campaigns ──< leads ──< lead_notes
 | `leads` | `form_data` (JSONB), UTMs, `page_url`, `referrer`. `cpf` completo + `cpf_masked` gerado. Sem unique por CPF. Unique `(campaign_id, client_submission_id)`. `assigned_to` = SDR responsável (FK composta `(store_id, assigned_to)` → `store_members`: só membro da mesma loja). |
 | `lead_notes` | Só inclusão. `store_id` e `author_id` definidos pelo banco. |
 | `lead_events` | Append-only, gerado pelo banco: `CREATED`, `STATUS_CHANGED`, `NOTE_ADDED`, `ASSIGNED` (`{from, to}` = ids de usuário), `CPF_REVEALED` (payload vazio). Nunca contém CPF. |
+| `user_creation_audit` | Quem criou cada usuário pelo Admin: conta, e-mail no momento, acesso (`SUPER_ADMIN` / `STORE_ADMIN` / `STORE_USER`), loja e `created_by`. Escrita só por `grant_new_user_access()`; leitura só SUPER_ADMIN. Nunca contém senha. |
 
 ## Regras garantidas pelo banco
 
@@ -43,6 +44,13 @@ stores ──< campaigns ──< leads ──< lead_notes
 - CPF validado com dígitos verificadores (CHECK). Idade mínima e demais validações ficam na API (Fase 3).
 - Responsável só muda por `assign_lead()` (Fase 9); erros: `KL010` lead fora do alcance, `KL011` sem permissão, `KL012` lead já
   tem outro responsável, `KL013` responsável não é membro ativo da loja.
+- **Acesso inicial de usuário criado pelo Admin** (migration `20261028120000_user_creation_access`): a conta é criada pela API
+  oficial do Supabase Auth (servidor, chave secreta) e o acesso é definido por `grant_new_user_access(usuário, acesso, loja)`,
+  chamada com a sessão de quem cria. O banco exige SUPER_ADMIN ativo (`KL011`, inclusive pela API REST), aceita só a conta
+  recém-criada (≤ 10 min), ativa, sem acesso ainda e que não é quem chama (`KL010`: não promove contas existentes nem a si
+  mesmo) e combinação válida — `SUPER_ADMIN` sem loja, Gerente/SDR com loja existente (`22023`). Acesso + auditoria numa
+  transação; se falhar, o servidor apaga a conta. `is_super_admin` segue sem GRANT de UPDATE para `authenticated`.
+  Rollback: `supabase/rollbacks/20261028120000_user_creation_access.down.sql`.
 - Lead só é excluído por `delete_lead()`, um por chamada (`KL010` fora do alcance, `KL011` não é gerente). Observações e histórico
   saem junto pelas FKs `ON DELETE CASCADE`, na mesma transação. Nenhum `GRANT DELETE` em `leads`/`lead_notes`/`lead_events` para `authenticated`.
 
@@ -55,7 +63,7 @@ RLS é habilitado explicitamente em todas as tabelas pelas migrations.
 | `anon` (sem login) | Nenhum. |
 | `STORE_USER` (SDR) | Lê loja, campanhas, leads, notas e eventos **das próprias lojas** (exceto `CPF_REVEALED`). **Só nos leads em que é o responsável:** altera `leads.status`, cria notas e revela CPF (auditado). Assume para si lead **sem responsável**. |
 | `STORE_ADMIN` (gerente) | Lê tudo da própria loja + membros e perfis dos membros; vê `CPF_REVEALED`; altera status, cria notas e revela CPF de **qualquer** lead da loja; atribui/reatribui/devolve leads para membros ativos da loja; **exclui** leads da própria loja. |
-| `SUPER_ADMIN` | Lê tudo. Cria/edita lojas, campanhas e vínculos. Atribui em qualquer loja (só para membros daquela loja). Exclui leads de qualquer loja. |
+| `SUPER_ADMIN` | Lê tudo. Cria/edita lojas, campanhas e vínculos. Cria usuários — inclusive outro SUPER_ADMIN — por `grant_new_user_access()`. Atribui em qualquer loja (só para membros daquela loja). Exclui leads de qualquer loja. |
 | `service_role` (chave secreta, só servidor) | Ignora RLS. Usado pela API pública (Fase 3). |
 
 **CPF:** usuários autenticados **não** têm `SELECT` na coluna `leads.cpf`, apenas em `cpf_masked` (`***.456.789-**`). Por isso, consultas a `leads` precisam listar as colunas (`select=*` falha). O CPF completo sai **só** por `reveal_lead_cpf(lead)`: confere usuário ativo + loja do lead + `private.can_work_lead` (SDR só se for o responsável), grava `CPF_REVEALED` (sem o CPF) e devolve o CPF daquele lead. CPF nunca vai em URL, query string, log ou HTML inicial.
@@ -98,6 +106,11 @@ npm run db:types                            # gera src/types/database.ts
 Alternativa: colar os arquivos de `supabase/migrations` (em ordem) e depois `supabase/seed.sql` no SQL Editor do painel e então registrar o histórico com `npx supabase migration repair --status applied <versão>`.
 
 ## Criar o SUPER_ADMIN
+
+Com um SUPER_ADMIN já ativo, os próximos são criados pelo próprio Admin: **Configurações → Usuários → Novo usuário →
+Administrador Geral** (ver [admin.md](admin.md#novo-usuário-administrador-geral-gerente-ou-sdr)). Sem SQL.
+
+Só para o **primeiro** SUPER_ADMIN de um projeto vazio (bootstrap):
 
 1. No painel: **Authentication → Users → Add user** (e-mail + senha, marcar como confirmado). O `profile` é criado automaticamente.
 2. No SQL Editor:

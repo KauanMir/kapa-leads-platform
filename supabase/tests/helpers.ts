@@ -79,6 +79,7 @@ export async function cleanupByPrefix(admin: SupabaseClient<Database>, prefix: s
     await admin.from("campaigns").delete().in("store_id", storeIds);
     await admin.from("stores").delete().in("id", storeIds);
   }
+  await admin.from("user_creation_audit").delete().like("email", `${prefix}%@${TEST_EMAIL_DOMAIN}`);
   const { data: users } = await admin.auth.admin.listUsers({ perPage: 1000 });
   for (const user of users?.users ?? []) {
     if (user.email?.startsWith(prefix) && user.email.endsWith(`@${TEST_EMAIL_DOMAIN}`)) {

@@ -10,8 +10,9 @@ import { assignLeadAction, claimLeadAction } from "@/lib/actions/leads";
 type Option = { id: string; label: string };
 
 /**
- * Responsável pelo lead. Gerente/KAPA trocam pelo seletor; SDR só pode
- * ASSUMIR um lead sem responsável. Quem decide é o banco (assign_lead).
+ * Responsável pelo lead. Gerente/KAPA trocam pelo seletor (transferência,
+ * registrada como ASSIGNED no histórico); SDR só pode ASSUMIR um lead sem
+ * responsável — exclusivo, sem tomar o de outro. Quem decide é o banco (assign_lead).
  */
 export function AssigneeCard({
   leadId,
@@ -84,6 +85,9 @@ export function AssigneeCard({
       <p role={message?.tone === "error" ? "alert" : "status"} className={`mt-1 text-[13px] empty:hidden ${message?.tone === "error" ? "text-danger" : "text-muted"}`}>
         {pending && canManage ? "Salvando…" : message?.text}
       </p>
+      {canManage && assignedTo && !pending && !message ? (
+        <p className="mt-1 text-[13px] text-subtle">Transferências ficam registradas no histórico.</p>
+      ) : null}
     </div>
   );
 }

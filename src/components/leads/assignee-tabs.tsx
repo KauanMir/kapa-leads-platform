@@ -2,14 +2,25 @@ import Link from "next/link";
 
 import type { AssigneeFilter } from "@/lib/admin/filters";
 
-const TABS: Array<{ value: AssigneeFilter; label: string }> = [
-  { value: "meus", label: "Meus leads" },
-  { value: "sem", label: "Sem responsável" },
-  { value: "todos", label: "Todos" },
-];
-
-/** Atalhos de fila (um clique). Filtro por um SDR específico fica no formulário. */
-export function AssigneeTabs({ current, hrefFor }: { current: AssigneeFilter; hrefFor: (value: AssigneeFilter) => string }) {
+/**
+ * Atalhos de fila (um clique). Filtro por um SDR específico fica no formulário.
+ * `queueLabel`: a fila sem responsável ("Disponíveis" para o SDR, que só pode
+ * assumir leads dela; "Sem responsável" para quem distribui).
+ */
+export function AssigneeTabs({
+  current,
+  hrefFor,
+  queueLabel = "Sem responsável",
+}: {
+  current: AssigneeFilter;
+  hrefFor: (value: AssigneeFilter) => string;
+  queueLabel?: string;
+}) {
+  const TABS: Array<{ value: AssigneeFilter; label: string }> = [
+    { value: "meus", label: "Meus leads" },
+    { value: "sem", label: queueLabel },
+    { value: "todos", label: "Todos" },
+  ];
   return (
     <nav aria-label="Filas de leads" className="flex gap-1 overflow-x-auto px-2 sm:gap-2 sm:px-4">
       {TABS.map((tab) => {

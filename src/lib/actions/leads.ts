@@ -46,7 +46,7 @@ export async function addNote(id: string, _prev: FormState, formData: FormData):
 const ASSIGN_MESSAGES: Record<Exclude<AssignResult, { ok: true }>["reason"], string> = {
   not_found: "Lead não encontrado ou sem permissão.",
   forbidden: "Sem permissão para atribuir este lead.",
-  taken: "Este lead já tem outro responsável. Atualize a página.",
+  taken: "Este contato já foi assumido por outro atendente.",
   invalid: "Escolha um membro ativo desta loja.",
 };
 
@@ -66,12 +66,20 @@ export async function assignLeadAction(id: string, assigneeId: string): Promise<
   return { ok: true };
 }
 
-/** SDR assume para si um lead sem responsável. */
+/**
+ * SDR assume para si um lead sem responsável. Exclusivo: o banco trava a
+ * linha e recusa (KL012) se outro atendente assumiu antes — tela desatualizada
+ * ou dois cliques ao mesmo tempo. Nesse caso a página também é atualizada,
+ * para mostrar o responsável real e sumir com o ASSUMIR LEAD.
+ */
 export async function claimLeadAction(id: string): Promise<ActionResult> {
   if (!leadId.safeParse(id).success) return { ok: false, error: "Dados inválidos." };
   const { db, context } = await getAdminSession();
   const result = await assignLead(db, id, context.userId);
-  if (!result.ok) return { ok: false, error: ASSIGN_MESSAGES[result.reason] };
+  if (!result.ok) {
+    if (result.reason === "taken") refresh();
+    return { ok: false, error: ASSIGN_MESSAGES[result.reason] };
+  }
   refresh();
   return { ok: true };
 }

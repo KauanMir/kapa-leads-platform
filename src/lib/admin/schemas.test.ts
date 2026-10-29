@@ -70,11 +70,39 @@ describe("outros formulários", () => {
     expect(storeInputSchema.safeParse({ name: "Loja", slug: "minha-loja", logoUrl: "http://x.com/a.png" }).success).toBe(false);
   });
 
-  it("usuário: senha mínima e papel válido", () => {
-    const base = { fullName: "Ana", email: "ANA@Example.com", password: "senha-bem-longa", storeId: "", role: "STORE_USER" };
-    expect(createUserSchema.parse(base)).toMatchObject({ email: "ana@example.com", storeId: null });
-    expect(createUserSchema.safeParse({ ...base, password: "curta" }).success).toBe(false);
-    expect(createUserSchema.safeParse({ ...base, role: "SUPER_ADMIN" }).success).toBe(false);
+  describe("novo usuário", () => {
+    const base = { fullName: "Ana", email: "ANA@Example.com", password: "senha-bem-longa", storeId: STORE_ID, access: "STORE_USER", confirmGlobal: null };
+    const errors = (input: Record<string, unknown>) => {
+      const result = createUserSchema.safeParse(input);
+      return result.success ? {} : fieldErrors(result.error);
+    };
+
+    it("Gerente e SDR: loja obrigatória; e-mail normalizado", () => {
+      expect(createUserSchema.parse(base)).toEqual({ fullName: "Ana", email: "ana@example.com", password: "senha-bem-longa", storeId: STORE_ID, access: "STORE_USER" });
+      expect(createUserSchema.parse({ ...base, access: "STORE_ADMIN" }).access).toBe("STORE_ADMIN");
+      expect(errors({ ...base, storeId: "" })).toEqual({ storeId: "Selecione a loja" });
+      expect(errors({ ...base, access: "STORE_ADMIN", storeId: "" })).toEqual({ storeId: "Selecione a loja" });
+    });
+
+    it("senha com os requisitos atuais (10 a 72 caracteres)", () => {
+      expect(errors({ ...base, password: "curta" })).toHaveProperty("password");
+      expect(errors({ ...base, password: "x".repeat(73) })).toHaveProperty("password");
+    });
+
+    it("Administrador Geral: sem loja e com confirmação explícita do acesso global", () => {
+      const global = { ...base, access: "SUPER_ADMIN", storeId: "", confirmGlobal: "on" };
+      expect(createUserSchema.parse(global)).toMatchObject({ access: "SUPER_ADMIN", storeId: null });
+      expect(errors({ ...global, confirmGlobal: null })).toEqual({ confirmGlobal: "Confirme o acesso global" });
+      // Loja enviada junto (requisição manipulada) é descartada: o acesso é global.
+      expect(createUserSchema.parse({ ...global, storeId: STORE_ID }).storeId).toBeNull();
+    });
+
+    it("tipo de acesso desconhecido ou ausente é recusado", () => {
+      expect(errors({ ...base, access: "OWNER" })).toHaveProperty("access");
+      expect(errors({ ...base, access: null })).toHaveProperty("access");
+      // O nome antigo do campo não cria acesso.
+      expect(errors({ ...base, access: undefined, role: "SUPER_ADMIN" })).toHaveProperty("access");
+    });
   });
 
   it("chave de campanha no mesmo formato do banco", () => {

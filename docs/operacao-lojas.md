@@ -68,6 +68,19 @@ Usuário ou vínculo desativado não assume nem recebe leads. Se um SDR sair, o 
 **Como atribuir (gerente):** abra o lead → **Responsável pelo lead** → escolha o SDR. Salva na hora.
 **Como assumir (SDR):** abra o lead da fila → **ASSUMIR LEAD**.
 
+**Exclusividade (um único responsável por vez):**
+
+- Abrir ou ver um lead **não** é assumir. O lead só fica com o SDR quando o **ASSUMIR LEAD** é confirmado pelo banco.
+- Assumido, o lead sai da aba **Disponíveis** de todos os SDRs e não volta ao atualizar a página.
+- Tela desatualizada ou dois cliques ao mesmo tempo: o banco trava a linha do lead (`assign_lead`, `FOR UPDATE`);
+  o primeiro fica com o lead e o outro recebe **"Este contato já foi assumido por outro atendente."** (a página
+  se atualiza e passa a mostrar quem atende).
+- O SDR não troca, não repassa e não devolve o responsável — nem pela API: a coluna `assigned_to` não aceita
+  UPDATE direto e `assign_lead` recusa (`KL011`/`KL012`).
+- **Transferência** é só do gerente (na própria loja) ou da KAPA. Cada troca grava no histórico um evento
+  `ASSIGNED` com **responsável anterior**, **novo responsável**, **quem fez** e **data/hora** ("Responsável
+  alterado: Maria → João", com o nome de quem alterou). O histórico não é editável pela API.
+
 **O responsável vale de verdade** (regra no banco, não só na tela):
 
 | Para o SDR | Ver | Assumir | Status / observação / CPF / WhatsApp / resumo |
@@ -83,7 +96,8 @@ trabalha qualquer lead.
 
 Na tela **Leads**:
 
-- Abas **Meus leads** · **Sem responsável** · **Todos**. O SDR abre direto em **Meus leads**; o gerente em **Todos**.
+- Abas **Meus leads** · **Sem responsável** · **Todos** (para o SDR, a fila se chama **Disponíveis**: só leads que
+  ele ainda pode assumir). O SDR abre direto em **Meus leads**; o gerente em **Todos**.
 - Gerente/KAPA filtram também por **Responsável** (um SDR específico, sem responsável ou meus).
 - Continuam: busca por **nome ou telefone**, **status**, **campanha**, **período** e **loja** (KAPA).
 - CPF **não** é aceito na busca e nunca vai para a URL.

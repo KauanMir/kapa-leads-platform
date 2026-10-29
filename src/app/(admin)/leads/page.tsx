@@ -59,7 +59,7 @@ async function LeadsContent(props: PageProps<"/leads">) {
 
       <Card className="overflow-hidden">
         <div className="border-b border-line">
-          <AssigneeTabs current={filters.assignee} hrefFor={(assignee) => hrefFor({ assignee })} />
+          <AssigneeTabs current={filters.assignee} hrefFor={(assignee) => hrefFor({ assignee })} queueLabel={manager ? "Sem responsável" : "Disponíveis"} />
         </div>
 
         <LeadFilters
@@ -79,7 +79,15 @@ async function LeadsContent(props: PageProps<"/leads">) {
           rows={result.rows}
           showStore={showStore}
           assignees={{ names: Object.fromEntries(team.map((m) => [m.userId, m.fullName])), currentUserId: context.userId }}
-          emptyMessage={filters.assignee === "meus" ? "Nenhum lead seu aqui." : filters.assignee === "sem" ? "Nenhum lead sem responsável." : undefined}
+          emptyMessage={
+            filters.assignee === "meus"
+              ? "Nenhum lead seu aqui."
+              : filters.assignee === "sem"
+                ? manager
+                  ? "Nenhum lead sem responsável."
+                  : "Nenhum lead disponível para assumir."
+                : undefined
+          }
         />
         {result.total > 0 ? (
           <Pagination

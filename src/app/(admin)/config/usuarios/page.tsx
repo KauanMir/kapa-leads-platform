@@ -25,7 +25,7 @@ function Tag({ tone = "neutral", children }: { tone?: "neutral" | "accent" | "da
 
 async function UsersContent(props: PageProps<"/config/usuarios">) {
   const session = await getSuperAdminSession();
-  const { criado, vinculo } = await props.searchParams;
+  const { criado } = await props.searchParams;
   if (!session) return <NotFoundPanel />;
   const { db } = session;
   const users = await listUsers(db);
@@ -45,8 +45,8 @@ async function UsersContent(props: PageProps<"/config/usuarios">) {
 
       {criado ? (
         <div className="mb-5">
-          <Notice tone={vinculo === "falhou" ? "error" : "success"}>
-            {vinculo === "falhou" ? "Usuário criado, mas o vínculo com a loja falhou. Abra o usuário e vincule novamente." : "Usuário criado."}
+          <Notice tone="success">
+            {criado === "global" ? "Administrador geral criado, com acesso a todas as lojas." : "Usuário criado e vinculado à loja."}
           </Notice>
         </div>
       ) : null}

@@ -421,6 +421,58 @@ export type Database = {
         }
         Relationships: []
       }
+      user_creation_audit: {
+        Row: {
+          access: string
+          created_at: string
+          created_by: string | null
+          email: string
+          id: number
+          store_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          access: string
+          created_at?: string
+          created_by?: string | null
+          email: string
+          id?: never
+          store_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          access?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          id?: never
+          store_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_creation_audit_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_creation_audit_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_creation_audit_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -436,6 +488,10 @@ export type Database = {
           p_lead_id: string
           p_release_cpf_cooldown?: boolean
         }
+        Returns: undefined
+      }
+      grant_new_user_access: {
+        Args: { p_access: string; p_store_id?: string; p_user_id: string }
         Returns: undefined
       }
       lead_kpis: {

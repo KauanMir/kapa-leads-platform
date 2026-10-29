@@ -10,7 +10,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { Avatar } from "@/components/ui/avatar";
 import { BackLink, Card, CardHeader, EmptyState } from "@/components/ui/card";
 import { setMembershipActiveAction, setUserActiveAction } from "@/lib/actions/config";
-import { listStores, listUsers } from "@/lib/admin/config";
+import { getUserCreation, listStores, listUsers } from "@/lib/admin/config";
 import { ROLE_LABELS } from "@/lib/auth/access";
 import { getSuperAdminSession } from "@/lib/auth/session";
 import { formatDay } from "@/lib/format/datetime";
@@ -26,6 +26,7 @@ async function UserDetailContent(props: PageProps<"/config/usuarios/[id]">) {
   const [users, stores] = await Promise.all([listUsers(db), listStores(db)]);
   const user = users.find((u) => u.id === id);
   if (!user) return <NotFoundPanel />;
+  const creation = await getUserCreation(db, user.id);
 
   const isSelf = user.id === context.userId;
   const name = user.fullName || user.email || "Usuário";
@@ -53,6 +54,7 @@ async function UserDetailContent(props: PageProps<"/config/usuarios/[id]">) {
               </p>
               <p className="mt-1.5 text-sm text-muted">
                 {user.isSuperAdmin ? ROLE_LABELS.SUPER_ADMIN : "Acesso conforme os vínculos abaixo"} · criado em {formatDay(user.createdAt)}
+                {creation?.createdByName ? ` por ${creation.createdByName}` : null}
               </p>
             </div>
             {isSelf ? (
