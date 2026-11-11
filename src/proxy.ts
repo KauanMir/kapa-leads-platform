@@ -9,7 +9,8 @@ import { getSupabasePublicEnv, sessionCookieOptions } from "@/lib/supabase/env";
  *  2. redireciona para /login quem não está autenticado (checagem otimista).
  *
  * A autorização de verdade acontece no servidor, perto dos dados
- * (getAdminContext + RLS). A API pública (/api/public) não passa por aqui.
+ * (getAdminContext + RLS). A API pública (/api/public) e a exportação assinada para o
+ * KAPA CRM (/api/integrations/crm/, sem sessão: autenticação própria por HMAC) não passam por aqui.
  */
 const PUBLIC_PATHS = ["/login", "/auth/"];
 
@@ -48,5 +49,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/public|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: ["/((?!api/public|api/integrations/crm/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

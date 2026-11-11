@@ -61,6 +61,7 @@ npm run dev                  # http://localhost:3000
 - Usuários de loja, papéis e fluxo de atendimento: [`docs/operacao-lojas.md`](docs/operacao-lojas.md).
 - Banco, RLS e como aplicar migrations: [`docs/banco-e-seguranca.md`](docs/banco-e-seguranca.md).
 - API pública para Landing Pages (`POST /api/public/leads`): [`docs/integracao-landing-page.md`](docs/integracao-landing-page.md).
+- Exportação SOMENTE LEITURA para o KAPA CRM (`GET /api/integrations/crm/leads`, desligada por padrão): [`docs/integracao-crm.md`](docs/integracao-crm.md).
 
 ## Estrutura de pastas
 
